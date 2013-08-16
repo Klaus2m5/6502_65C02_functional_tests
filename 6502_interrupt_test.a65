@@ -20,7 +20,7 @@
 ; This program is designed to test IRQ and NMI of a 6502 emulator. It requires
 ; an internal or external feedback register to the IRQ & NMI inputs
 ; 
-; version 19-jul-2013
+; version 16-aug-2013
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -48,6 +48,8 @@
 ;
 ; versions:
 ;   19-jul-2013  1st version distributed for testing
+;   16-aug-2013  added error report to standard output option
+
 
 ; C O N F I G U R A T I O N
 ;
@@ -86,6 +88,10 @@ data_segment = $200
 ;code_segment memory start address
 code_segment = $400
 
+;report errors through I/O channel (0=use standard self trap loops, 1=include
+;report.i65 as I/O channel)
+report = 0
+
         noopt       ;do not take shortcuts
 
 ;macros for error & success traps to allow user modification
@@ -98,6 +104,11 @@ code_segment = $400
 ;        trap           ;failed equal (zero)
 ;skip\?
 ;        endm
+;
+; my_error_handler should pop the calling address from the stack and report it.
+; putting larger portions of code (more than 3 bytes) inside the trap macro
+; may lead to branch range problems for some tests.
+    if report = 0
 trap    macro
         jmp *           ;failed anyway
         endm
@@ -107,9 +118,32 @@ trap_eq macro
 trap_ne macro
         bne *           ;failed not equal (non zero)
         endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
 success macro
         jmp *           ;test passed, no errors
         endm
+    endif
+    if report = 1
+trap    macro
+        jsr report_error
+        endm
+trap_eq macro
+        bne skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+trap_ne macro
+        beq skip\?
+        trap            ;failed not equal (non zero)
+skip\?
+        endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
+success macro
+        jsr report_success
+        endm
+    endif
 
 
 carry   equ %00000001   ;flag bits in status
@@ -156,26 +190,27 @@ set_stat    macro       ;setting flags in the processor status register
     endif
         org zero_page
 ;BRK, IRQ, NMI test interrupt save
+zpt
 irq_a   ds  1               ;a register
 irq_x   ds  1               ;x register
 irq_f   ds  1               ;flags
 nmi_a   ds  1               ;a register
 nmi_x   ds  1               ;x register
 nmi_f   ds  1               ;flags
+zp_bss
 
 ;fixed stack locations
 lst_f   equ $1fe            ;last flags before interrupt
 lst_a   equ $1ff            ;last accumulator before interrupt
     
         org data_segment
-data_bss
 ;concurrent NMI, IRQ & BRK test result
 nmi_count   ds  1           ;lowest number handled first, $ff = never
 irq_count   ds  1           ;separation-1 = instructions between interrupts
 brk_count   ds  1
 ;expected interrupt mask
 I_src       ds  1           ;bit: 0=BRK, 1=IRQ, 2=NMI
-data_bss_end
+data_bss
 
         code
         org code_segment
@@ -184,6 +219,11 @@ start   cld
         sta I_src
         ldx #$ff
         txs
+    
+;initialize I/O for report channel
+    if report = 1
+        jsr report_init
+    endif
 
 ; load system vectors
     if load_data_direct != 1
@@ -781,6 +821,7 @@ I_clr   macro  ibit     ;ibit = interrupt bit
 ; S U C C E S S ************************************************       
 ; check data_segment +0 to +2 for sequence of concurrent interrupts
 ; e.g. 0x200 = NMI, 0x201 = IRQ, 0x202 = BRK, lower values = earlier
+        jmp start       ;run again      
 
 ; manual tests for the WAI opcode of the 65c02
 
@@ -788,7 +829,7 @@ wai     macro
         db  $cb         ;WAI opcode
         endm
         
-; requires single step operation
+; requires single step operation, report = 0
 ;   set PC to the 1st instruction of the test
 ;   step to the WAI opcode, then manually tie the IRQ input low
 ;   continue to step until you see the PC advance, then remove IRQ
@@ -948,6 +989,11 @@ brk_trap
         lda #'K'        ;mark (BR)K
         plp             ;should be reversed by rti
         rti
+        
+    if report = 1
+rep_int = 1
+        include "report.i65"
+    endif
 
         
 ;system vectors

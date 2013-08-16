@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 23-jul-2013
+; version 16-aug-2013
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -65,35 +65,47 @@
 ;   02-mar-2013  fixed PLA flags not tested
 ;   19-jul-2013  allowed ROM vectors to be loaded when load_data_direct = 0
 ;                added test sequence check to detect if tests jump their fence
-;   23-jul-2013  added RAM integrity check
+;   23-jul-2013  added RAM integrity check option
+;   16-aug-2013  added error report to standard output option
+
 
 ; C O N F I G U R A T I O N
-;
+
 ;ROM_vectors writable (0=no, 1=yes)
 ;if ROM vectors can not be used interrupts will not be trapped
 ;as a consequence BRK can not be tested but will be emulated to test RTI
 ROM_vectors = 1
+
 ;load_data_direct (0=move from code segment, 1=load directly)
 ;loading directly is preferred but may not be supported by your platform
 ;0 produces only consecutive object code, 1 is not suitable for a binary image
 load_data_direct = 1
+
 ;I_flag behavior (0=force enabled, 1=force disabled, 2=prohibit change, 3=allow
 ;change) 2 requires extra code and is not recommended. SEI & CLI can only be
 ;tested if you allow changing the interrupt status (I_flag = 3)
 I_flag = 3
+
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $50 (80) consecutive Bytes required
 ;                                add 2 if I_flag = 2
 zero_page = $a  
+
 ;data_segment memory start address, $5B (91) consecutive Bytes required
 data_segment = $200  
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
     endif  
+
 ;code_segment memory start address, 13kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
 ;parts of the code are self modifying and must reside in RAM
 code_segment = $400  
+
+;report errors through I/O channel (0=use standard self trap loops, 1=include
+;report.i65 as I/O channel, add 3.5 kB)
+report = 0
+
 ;RAM integrity test option. Checks for undesired RAM writes.
 ;set lowest non RAM or RAM mirror address page (-1=disable, 0=64k, $40=16k)
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
@@ -115,6 +127,7 @@ ram_top = -1
 ; my_error_handler should pop the calling address from the stack and report it.
 ; putting larger portions of code (more than 3 bytes) inside the trap macro
 ; may lead to branch range problems for some tests.
+    if report = 0
 trap    macro
         jmp *           ;failed anyway
         endm
@@ -142,9 +155,62 @@ trap_vs macro
 trap_vc macro
         bvc *           ;failed overflow clear
         endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
 success macro
         jmp *           ;test passed, no errors
         endm
+    endif
+    if report = 1
+trap    macro
+        jsr report_error
+        endm
+trap_eq macro
+        bne skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+trap_ne macro
+        beq skip\?
+        trap            ;failed not equal (non zero)
+skip\?
+        endm
+trap_cs macro
+        bcc skip\?
+        trap            ;failed carry set
+skip\?
+        endm
+trap_cc macro
+        bcs skip\?
+        trap            ;failed carry clear
+skip\?
+        endm
+trap_mi macro
+        bpl skip\?
+        trap            ;failed minus (bit 7 set)
+skip\?
+        endm
+trap_pl macro
+        bmi skip\?
+        trap            ;failed plus (bit 7 clear)
+skip\?
+        endm
+trap_vs macro
+        bvc skip\?
+        trap            ;failed overflow set
+skip\?
+        endm
+trap_vc macro
+        bvs skip\?
+        trap            ;failed overflow clear
+skip\?
+        endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
+success macro
+        jsr report_success
+        endm
+    endif
 
 
 carry   equ %00000001   ;flag bits in status
@@ -465,7 +531,7 @@ next_test   macro           ;make sure, tests don't jump the fence
             cmp #test_num
             trap_ne         ;test is out of sequence
 test_num = test_num + 1
-            lda #test_num   ;*** this tests' number
+            lda #test_num   ;*** next tests' number
             sta test_case
             ;check_ram       ;uncomment to find altered RAM after each test
             endm
@@ -491,7 +557,7 @@ ad1     ds  1               ;operand 1 - accumulator
 ad2     ds  1               ;operand 2 - memory / immediate
 adrl    ds  1               ;expected result bits 0-7
 adrh    ds  1               ;expected result bit 8 (carry)
-adrf    ds  1               ;expected flags NV0000ZC (-V in decimal mode)
+adrf    ds  1               ;expected flags NV0000ZC (only binary mode)
 sb2     ds  1               ;operand 2 complemented for subtract
 zp_bss
 zp1     db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
@@ -577,6 +643,8 @@ data_bss_end
         code
         org code_segment
 start   cld
+        ldx #$ff
+        txs
         lda #0          ;*** test 0 = initialize
         sta test_case
 test_num = 0
@@ -584,6 +652,11 @@ test_num = 0
 ;stop interrupts before initializing BSS
     if I_flag = 1
         sei
+    endif
+    
+;initialize I/O for report channel
+    if report = 1
+        jsr report_init
     endif
     
 ;initialize BSS segment
@@ -1036,10 +1109,6 @@ br4     php
         bvs nbr12
         bcs nbr13
         beq nbr14
-        trap_mi  
-        trap_vs
-        trap_cs
-        trap_eq 
         bpl br11        ;branches should be taken
         trap 
 br11    bvc br12
@@ -1061,22 +1130,151 @@ br14    php
         cmp_flag 0      ;flags off except break (pushed by sw) + reserved?
         trap_ne
         ;crosscheck flags
-        set_stat carry
-        trap_cc
         set_stat zero
-        trap_ne
-        set_stat overfl
-        trap_vc
+        bne brzs1
+        beq brzs2
+brzs1
+        trap            ;branch zero/non zero
+brzs2   bcs brzs3
+        bcc brzs4
+brzs3
+        trap            ;branch carry/no carry
+brzs4   bmi brzs5
+        bpl brzs6
+brzs5
+        trap            ;branch minus/plus
+brzs6   bvs brzs7
+        bvc brzs8
+brzs7
+        trap            ;branch overflow/no overflow
+brzs8
+        set_stat carry
+        beq brcs1
+        bne brcs2
+brcs1
+        trap            ;branch zero/non zero
+brcs2   bcc brcs3
+        bcs brcs4
+brcs3
+        trap            ;branch carry/no carry
+brcs4   bmi brcs5
+        bpl brcs6
+brcs5
+        trap            ;branch minus/plus
+brcs6   bvs brcs7
+        bvc brcs8
+brcs7
+        trap            ;branch overflow/no overflow
+
+brcs8
         set_stat minus
-        trap_pl
-        set_stat $ff-carry
-        trap_cs
+        beq brmi1
+        bne brmi2
+brmi1
+        trap            ;branch zero/non zero
+brmi2   bcs brmi3
+        bcc brmi4
+brmi3
+        trap            ;branch carry/no carry
+brmi4   bpl brmi5
+        bmi brmi6
+brmi5
+        trap            ;branch minus/plus
+brmi6   bvs brmi7
+        bvc brmi8
+brmi7
+        trap            ;branch overflow/no overflow
+brmi8
+        set_stat overfl
+        beq brvs1
+        bne brvs2
+brvs1
+        trap            ;branch zero/non zero
+brvs2   bcs brvs3
+        bcc brvs4
+brvs3
+        trap            ;branch carry/no carry
+brvs4   bmi brvs5
+        bpl brvs6
+brvs5
+        trap            ;branch minus/plus
+brvs6   bvc brvs7
+        bvs brvs8
+brvs7
+        trap            ;branch overflow/no overflow
+brvs8
         set_stat $ff-zero
-        trap_eq 
-        set_stat $ff-overfl
-        trap_vs
+        beq brzc1
+        bne brzc2
+brzc1
+        trap            ;branch zero/non zero
+brzc2   bcc brzc3
+        bcs brzc4
+brzc3
+        trap            ;branch carry/no carry
+brzc4   bpl brzc5
+        bmi brzc6
+brzc5
+        trap            ;branch minus/plus
+brzc6   bvc brzc7
+        bvs brzc8
+brzc7
+        trap            ;branch overflow/no overflow
+brzc8
+        set_stat $ff-carry
+        bne brcc1
+        beq brcc2
+brcc1
+        trap            ;branch zero/non zero
+brcc2   bcs brcc3
+        bcc brcc4
+brcc3
+        trap            ;branch carry/no carry
+brcc4   bpl brcc5
+        bmi brcc6
+brcc5
+        trap            ;branch minus/plus
+brcc6   bvc brcc7
+        bvs brcc8
+brcc7
+        trap            ;branch overflow/no overflow
+brcc8
         set_stat $ff-minus
-        trap_mi
+        bne brpl1
+        beq brpl2
+brpl1
+        trap            ;branch zero/non zero
+brpl2   bcc brpl3
+        bcs brpl4
+brpl3
+        trap            ;branch carry/no carry
+brpl4   bmi brpl5
+        bpl brpl6
+brpl5
+        trap            ;branch minus/plus
+brpl6   bvc brpl7
+        bvs brpl8
+brpl7
+        trap            ;branch overflow/no overflow
+brpl8
+        set_stat $ff-overfl
+        bne brvc1
+        beq brvc2
+brvc1
+        trap            ;branch zero/non zero
+brvc2   bcc brvc3
+        bcs brvc4
+brvc3
+        trap            ;branch carry/no carry
+brvc4   bpl brvc5
+        bmi brvc6
+brvc5
+        trap            ;branch minus/plus
+brvc6   bvs brvc7
+        bvc brvc8
+brvc7
+        trap            ;branch overflow/no overflow
+brvc8
         next_test
 
 ; test PHA does not alter flags or accumulator but PLA does
@@ -4912,7 +5110,9 @@ tdad7   cld
 
         lda test_case
         cmp #test_num
-        trap_ne         ;test is out of sequence
+        trap_ne         ;previous test is out of sequence
+        lda #$f0        ;mark opcode testing complete
+        sta test_case
         
 ; final RAM integrity test
 ;   verifies that none of the previous tests has altered RAM outside of the
@@ -4925,12 +5125,12 @@ tdad7   cld
 ; allowed during previous tests.
 
 
-
 ; S U C C E S S ************************************************       
 ; -------------       
         success         ;if you get here everything went well
 ; -------------       
-; S U C C E S S ************************************************       
+; S U C C E S S ************************************************ 
+        jmp start       ;run again      
 
 ; core subroutine of the decimal add/subtract test
 ; *** WARNING - tests documented behavior only! ***
@@ -5479,7 +5679,7 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         cmp_flag 0      ;break test should have B=1
         trap_ne         ; - no break flag on stack
         pla
-        cmp #$34        ;should have added interrupt disable
+        cmp #fai        ;should have added interrupt disable
         trap_ne
         tsx
         cpx #$fc        ;sp -3? (return addr, flags)
@@ -5497,6 +5697,10 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         eor #$aa        ;N=1, V=1, Z=0, C=1 but original flags should be restored
         rti
         trap            ;runover protection
+        
+    if report = 1
+        include "report.i65"
+    endif
         
 ;copy of data to initialize BSS segment
     if load_data_direct != 1

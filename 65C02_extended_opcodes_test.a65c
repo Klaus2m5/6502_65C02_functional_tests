@@ -22,7 +22,7 @@
 ; The 6502_functional_test is a prerequisite to this test.
 ; NMI, IRQ, BRK, STP & WAI are covered in the 6502_interrupt_test.
 ; 
-; version 23-jul-2013
+; version 16-aug-2013
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -60,39 +60,53 @@
 ;   19-jul-2013  1st version distributed for testing
 ;   23-jul-2013  fixed BRA out of range due to larger trap macros
 ;                added RAM integrity check
+;   16-aug-2013  added error report to standard output option
+
 
 ; C O N F I G U R A T I O N
-;
+
 ;ROM_vectors writable (0=no, 1=yes)
 ;if ROM vectors can not be used interrupts will not be trapped
 ;as a consequence BRK can not be tested but will be emulated to test RTI
 ROM_vectors = 1
+
 ;load_data_direct (0=move from code segment, 1=load directly)
 ;loading directly is preferred but may not be supported by your platform
 ;0 produces only consecutive object code, 1 is not suitable for a binary image
 load_data_direct = 1
+
 ;I_flag behavior (0=force enabled, 1=force disabled, 2=prohibit change, 3=allow
 ;change) 2 requires extra code and is not recommended.
 I_flag = 3
+
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $4e (78) consecutive Bytes required
 ;                                add 2 if I_flag = 2
 zero_page = $a  
+
 ;data_segment memory start address, $5D (93) consecutive Bytes required
 ; + 12 Bytes at data_segment + $f9 (JMP indirect page cross test)
 data_segment = $200
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
     endif  
+
 ;code_segment memory start address, 10kB of consecutive space required
 ;                                   add 1 kB if I_flag = 2
 ;parts of the code are self modifying and must reside in RAM
 code_segment = $400  
+
 ;added WDC only opcodes WAI & STP (0=test as NOPs, >0=no test)
 wdc_op = 1
+
 ;added Rockwell & WDC opcodes BBR, BBS, RMB & SMB
 ;(0=test as NOPs, 1=full test, >1=no test) 
 rkwl_wdc_op = 1
+
+;report errors through I/O channel (0=use standard self trap loops, 1=include
+;report.i65 as I/O channel, add 3 kB)
+report = 0
+
 ;RAM integrity test option. Checks for undesired RAM writes.
 ;set lowest non RAM or RAM mirror address page (-1=disable, 0=64k, $40=16k)
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
@@ -114,6 +128,7 @@ ram_top = -1
 ; my_error_handler should pop the calling address from the stack and report it.
 ; putting larger portions of code (more than 3 bytes) inside the trap macro
 ; may lead to branch range problems for some tests.
+    if report = 0
 trap    macro
         jmp *           ;failed anyway
         endm
@@ -141,9 +156,62 @@ trap_vs macro
 trap_vc macro
         bvc *           ;failed overflow clear
         endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
 success macro
         jmp *           ;test passed, no errors
         endm
+    endif
+    if report = 1
+trap    macro
+        jsr report_error
+        endm
+trap_eq macro
+        bne skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+trap_ne macro
+        beq skip\?
+        trap            ;failed not equal (non zero)
+skip\?
+        endm
+trap_cs macro
+        bcc skip\?
+        trap            ;failed carry set
+skip\?
+        endm
+trap_cc macro
+        bcs skip\?
+        trap            ;failed carry clear
+skip\?
+        endm
+trap_mi macro
+        bpl skip\?
+        trap            ;failed minus (bit 7 set)
+skip\?
+        endm
+trap_pl macro
+        bmi skip\?
+        trap            ;failed plus (bit 7 clear)
+skip\?
+        endm
+trap_vs macro
+        bvc skip\?
+        trap            ;failed overflow set
+skip\?
+        endm
+trap_vc macro
+        bvs skip\?
+        trap            ;failed overflow clear
+skip\?
+        endm
+; please observe that during the test the stack gets invalidated
+; therefore a RTS inside the success macro is not possible
+success macro
+        jsr report_success
+        endm
+    endif
 
 
 carry   equ %00000001   ;flag bits in status
@@ -472,7 +540,7 @@ next_test   macro           ;make sure, tests don't jump the fence
             cmp #test_num
             trap_ne         ;test is out of sequence
 test_num = test_num + 1
-            lda #test_num   ;*** this tests' number
+            lda #test_num   ;*** next tests' number
             sta test_case
             ;check_ram       ;uncomment to find altered RAM after each test
             endm
@@ -582,9 +650,12 @@ jxi_tab equ data_segment + $100 - 7     ;JMP (jxi_tab,x) x=6
 ji_tab  equ data_segment + $100 - 3     ;JMP (ji_tab+2)
 jxp_tab equ data_segment + $100         ;JMP (jxp_tab-255) x=255
 
+
         code
         org code_segment
 start   cld
+        ldx #$ff
+        txs
         lda #0          ;*** test 0 = initialize
         sta test_case
 test_num = 0
@@ -592,6 +663,11 @@ test_num = 0
 ;stop interrupts before initializing BSS
     if I_flag = 1
         sei
+    endif
+    
+;initialize I/O for report channel
+    if report = 1
+        jsr report_init
     endif
     
 ;initialize BSS segment
@@ -2129,7 +2205,9 @@ tdad7   cpx #ad2
 
         lda test_case
         cmp #test_num
-        trap_ne         ;test is out of sequence
+        trap_ne         ;previous test is out of sequence
+        lda #$f0        ;mark opcode testing complete
+        sta test_case
 
 ; final RAM integrity test
 ;   verifies that none of the previous tests has altered RAM outside of the
@@ -2142,12 +2220,12 @@ tdad7   cpx #ad2
 ; allowed during previous tests.
 
 
-
 ; S U C C E S S ************************************************       
 ; -------------       
         success         ;if you get here everything went well
 ; -------------       
 ; S U C C E S S ************************************************       
+        jmp start       ;run again      
 
 ; core subroutine of the decimal add/subtract test
 ; *** WARNING - tests documented behavior only! ***
@@ -2528,6 +2606,10 @@ irq_trap
         jmp brk_ret
     else
         trap_ne         ;check stack for conditions at BRK
+    endif
+        
+    if report = 1
+        include "report.i65"
     endif
             
 ;copy of data to initialize BSS segment

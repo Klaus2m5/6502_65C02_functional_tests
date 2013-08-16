@@ -21,7 +21,7 @@ project. You can find it here: http://2m5.de/6502_Emu/index.htm
 A discussion about the tests can be found here:
 http://forum.6502.org/viewtopic.php?f=2&t=2241
 
-Good luck debugging your emulator, simulator, vhdl core, discrete
+Good luck debugging your emulator, simulator, fpga core, discrete
 logic implementation or whatever you have!
 
 
