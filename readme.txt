@@ -10,8 +10,6 @@ The 6502_interrupt_test.a65 is a simple test to check the interrupt system
 of both processors. A feedback register is required to inject IRQ and NMI
 requests.
 
-All source files are included in the zipped file.
-
 Detailed information about how to configure, assemble and run the tests is
 included in each source file.
 
