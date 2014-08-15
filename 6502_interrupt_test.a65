@@ -20,7 +20,7 @@
 ; This program is designed to test IRQ and NMI of a 6502 emulator. It requires
 ; an internal or external feedback register to the IRQ & NMI inputs
 ; 
-; version 16-aug-2013
+; version 15-aug-2014
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -49,6 +49,7 @@
 ; versions:
 ;   19-jul-2013  1st version distributed for testing
 ;   16-aug-2013  added error report to standard output option
+;   15-aug-2014  added filter to feedback (bit 7 will cause diag stop in emu)
 
 
 ; C O N F I G U R A T I O N
@@ -67,6 +68,7 @@ I_ddr       = 0         ;feedback DDR address, 0 = no DDR
 I_drive     = 1         ;0 = totem pole, 1 = open collector
 IRQ_bit     = 0         ;bit number of feedback to IRQ
 NMI_bit     = 1         ;bit number of feedback to NMI, -1 if not available
+I_filter    = $7f       ;filtering bit 7 = diag stop
 
 ;typical IO chip port B - set i_drive = 0 to avoid pullup resistors
 ;I_port      = $bfb2     ;feedback port address
@@ -74,9 +76,10 @@ NMI_bit     = 1         ;bit number of feedback to NMI, -1 if not available
 ;I_drive     = 1         ;0 = totem pole, 1 = open collector
 ;IRQ_bit     = 0         ;bit number of feedback to IRQ
 ;NMI_bit     = 1         ;bit number of feedback to NMI, -1 if not available
+;I_filter    = $ff       ;no bits filtered
 
 ;decimal mode flag during IRQ, NMI & BRK
-D_clear     = 1         ;0 = not cleared (NMOS), 1 = cleared (CMOS)
+D_clear     = 0         ;0 = not cleared (NMOS), 1 = cleared (CMOS)
 
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, 6 consecutive Bytes required
@@ -242,7 +245,7 @@ ld_vect lda vec_init,x
     if I_drive = 0      ;totem pole (push/pull, 0 -> I_port to force interrupt)
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn on interrupt by bit
-        and #$ff-(1<<\1)
+        and #I_filter-(1<<\1)
         plp             ;set flags
         pha             ;save to verify
         php
@@ -250,12 +253,14 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn off interrupt by bit
+        and #I_filter
         ora #(1<<ibit)
         sta I_port
         endm
         I_clr   IRQ_bit ;turn off IRQ
       if I_ddr != 0     ;with DDR
         lda I_ddr       ;set DDR for IRQ to enabled
+        and #I_filter
         ora #(1<<IRQ_bit)
         sta I_ddr
       endif    
@@ -263,6 +268,7 @@ I_clr   macro  ibit     ;ibit = interrupt bit
       if I_ddr != 0     ;with DDR
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_ddr       ;turn on interrupt by bit
+        and #I_filter
         ora #(1<<\1)
         plp             ;set flags
         pha             ;save to verify
@@ -271,16 +277,17 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_ddr       ;turn off interrupt by bit
-        and #$ff-(1<<ibit)
+        and #I_filter-(1<<ibit)
         sta I_ddr 
         endm
         I_clr   IRQ_bit ;turn off IRQ
         lda I_port      ;precharge IRQ
-        and #$ff-(1<<IRQ_bit)
+        and #I_filter-(1<<IRQ_bit)
         sta I_port
       else              ;no DDR
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn on interrupt by bit
+        and #I_filter
         ora #(1<<\1)
         plp             ;set flags
         pha             ;save to verify
@@ -289,7 +296,7 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn off interrupt by bit
-        and #$ff-(1<<ibit)
+        and #I_filter-(1<<ibit)
         sta I_port
         endm
         I_clr   IRQ_bit ;turn off IRQ
@@ -300,9 +307,9 @@ I_clr   macro  ibit     ;ibit = interrupt bit
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn on interrupt by bit
         if ibit > 7     ;set both NMI & IRQ
-          and #$ff-(1<<IRQ_bit|1<<NMI_bit)
+          and #I_filter-(1<<IRQ_bit|1<<NMI_bit)
         else
-          and #$ff-(1<<\1)
+          and #I_filter-(1<<\1)
         endif
         plp             ;set flags
         pha             ;save to verify
@@ -311,6 +318,7 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn off interrupt by bit
+        and #I_filter
         ora #(1<<ibit)
         sta I_port
         endm
@@ -318,6 +326,7 @@ I_clr   macro  ibit     ;ibit = interrupt bit
         I_clr   NMI_bit
       if I_ddr != 0     ;with DDR
         lda I_ddr       ;set DDR for IRQ & NMI to enabled
+        and #I_filter
         ora #(1<<IRQ_bit|1<<NMI_bit)
         sta I_ddr
       endif    
@@ -325,6 +334,7 @@ I_clr   macro  ibit     ;ibit = interrupt bit
       if I_ddr != 0     ;with DDR
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_ddr       ;turn on interrupt by bit
+        and #I_filter
         if ibit > 7     ;set both NMI & IRQ
           ora #(1<<IRQ_bit|1<<NMI_bit)
         else
@@ -337,17 +347,18 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_ddr       ;turn off interrupt by bit
-        and #$ff-(1<<ibit)
+        and #I_filter-(1<<ibit)
         sta I_ddr 
         endm
         I_clr   IRQ_bit ;turn off IRQ & NMI
         I_clr   NMI_bit
         lda I_port      ;precharge IRQ & NMI
-        and #$ff-(1<<IRQ_bit|1<<NMI_bit)
+        and #I_filter-(1<<IRQ_bit|1<<NMI_bit)
         sta I_port
       else              ;no DDR
 I_set   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn on interrupt by bit
+        and #I_filter
         if ibit > 7     ;set both NMI & IRQ
           ora #(1<<IRQ_bit|1<<NMI_bit)
         else
@@ -360,7 +371,7 @@ I_set   macro  ibit     ;ibit = interrupt bit
         endm
 I_clr   macro  ibit     ;ibit = interrupt bit
         lda I_port      ;turn off interrupt by bit
-        and #$ff-(1<<ibit)
+        and #I_filter-(1<<ibit)
         sta I_port
         endm
         I_clr   IRQ_bit ;turn off IRQ & NMI
