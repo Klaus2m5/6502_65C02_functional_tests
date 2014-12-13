@@ -1,7 +1,7 @@
 ;
 ; 6 5 0 2   F U N C T I O N A L   T E S T
 ;
-; Copyright (C) 2012-2013  Klaus Dormann
+; Copyright (C) 2012-2014  Klaus Dormann
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -67,6 +67,7 @@
 ;                added test sequence check to detect if tests jump their fence
 ;   23-jul-2013  added RAM integrity check option
 ;   16-aug-2013  added error report to standard output option
+;   13-dec-2014  added binary/decimal opcode table switch test
 
 
 ; C O N F I G U R A T I O N
@@ -367,8 +368,8 @@ set_absx    macro       ;precharging abs,x & immediate status
 ;macros to test (register|memory|zeropage) & status & (mask)
 tst_stat    macro       ;testing flags in the processor status register
             php         ;save status
-            php         ;use stack to retrieve status
-            pla
+            pla         ;use stack to retrieve status
+            pha
             cmp_flag \1
             trap_ne
             plp         ;restore status
@@ -376,10 +377,10 @@ tst_stat    macro       ;testing flags in the processor status register
             
 tst_a       macro       ;testing result in accu & flags
             php         ;save flags
-            php
             cmp #\1     ;test result
             trap_ne
             pla         ;load status
+            pha
             cmp_flag \2
             trap_ne
             plp         ;restore status
@@ -387,10 +388,10 @@ tst_a       macro       ;testing result in accu & flags
 
 tst_x       macro       ;testing result in x index & flags
             php         ;save flags
-            php
             cpx #\1     ;test result
             trap_ne
             pla         ;load status
+            pha
             cmp_flag \2
             trap_ne
             plp         ;restore status
@@ -398,10 +399,10 @@ tst_x       macro       ;testing result in x index & flags
 
 tst_y       macro       ;testing result in y index & flags
             php         ;save flags
-            php
             cpy #\1     ;test result
             trap_ne
             pla         ;load status
+            pha
             cmp_flag \2
             trap_ne
             plp         ;restore status
@@ -1725,6 +1726,7 @@ brk_ret                 ;address of break return
         next_test
      
 ;TSX sets NZ - TXS does not
+;  This section also tests for proper stack wrap around.
         ldx #1          ;01
         set_stat $ff
         txs
@@ -4857,7 +4859,7 @@ torai2  equ *+1     ;target for immediate operand
         bpl tora1
 
         ldx #3      ;zp
-tora2    lda zpOR,x
+tora2   lda zpOR,x
         sta zpt
         set_ax  absORa,0
         ora zpt
@@ -5106,7 +5108,62 @@ tdad6   dec ad2         ;operand 2 -1
         sta adrl        ;new result since op1+carry=00+carry +op2=op2
         inc adrh        ;result carry
         bne tdad        ;iterate op2
-tdad7   cld
+tdad7
+        next_test
+
+; decimal/binary switch test
+; tests CLD, SED, PLP, RTI to properly switch between decimal & binary opcode
+;   tables
+        clc
+        cld
+        php
+        lda #$55
+        adc #$55
+        cmp #$aa
+        trap_ne         ;expected binary result after cld
+        clc
+        sed
+        php
+        lda #$55
+        adc #$55
+        cmp #$10
+        trap_ne         ;expected decimal result after sed
+        cld
+        plp
+        lda #$55
+        adc #$55
+        cmp #$10
+        trap_ne         ;expected decimal result after plp D=1
+        plp
+        lda #$55
+        adc #$55
+        cmp #$aa
+        trap_ne         ;expected binary result after plp D=0
+        clc
+        lda #hi bin_rti_ret ;emulated interrupt for rti
+        pha
+        lda #lo bin_rti_ret
+        pha
+        php
+        sed
+        lda #hi dec_rti_ret ;emulated interrupt for rti
+        pha
+        lda #lo dec_rti_ret
+        pha
+        php
+        cld
+        rti
+dec_rti_ret
+        lda #$55
+        adc #$55
+        cmp #$10
+        trap_ne         ;expected decimal result after rti D=1
+        rti
+bin_rti_ret        
+        lda #$55
+        adc #$55
+        cmp #$aa
+        trap_ne         ;expected binary result after rti D=0
 
         lda test_case
         cmp #test_num
