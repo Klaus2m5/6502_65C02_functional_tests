@@ -1,6 +1,6 @@
 This is a set of functional tests for the 6502/65C02 type processors.
 
-The 6502_functionel_test.a65 is an assembler sourcecode to test all valid
+The 6502_functional_test.a65 is an assembler sourcecode to test all valid
 opcodes and addressing modes of the original NMOS 6502 cpu.
 
 The 65C02_extended_opcodes_test.a65c tests all additional opcodes of the

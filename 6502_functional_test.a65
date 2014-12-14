@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 16-aug-2013
+; version 14-dec-2014
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -68,6 +68,7 @@
 ;   23-jul-2013  added RAM integrity check option
 ;   16-aug-2013  added error report to standard output option
 ;   13-dec-2014  added binary/decimal opcode table switch test
+;   14-dec-2014  improved relative address test
 
 
 ; C O N F I G U R A T I O N
@@ -741,12 +742,27 @@ range_loop
         bpl range_fw    ;calculate relative address
         clc             ;avoid branch self or to relative address of branch
         adc #2
+        nop             ;offset landing zone - tolerate +/-5 offset to branch
+        nop
+        nop
+        nop
+        nop
 range_fw
+        nop
+        nop
+        nop
+        nop
+        nop
         eor #$7f        ;complement except sign
         sta range_adr   ;load into test target
         lda #0          ;should set zero flag in status register
         jmp range_op
         
+        dex             ; offset landing zone - backward branch too far
+        dex
+        dex
+        dex
+        dex
         ;relative address target field with branch under test in the middle                       
         dex             ;-128 - max backward
         dex
@@ -876,7 +892,7 @@ range_fw
         dex             ;-3
 range_op                ;test target with zero flag=0, z=1 if previous dex
 range_adr   = *+1       ;modifiable relative address
-        beq *+64        ;if called without modification
+        beq *+64        ;+64 if called without modification
         dex             ;+0
         dex
         dex
@@ -1004,9 +1020,24 @@ range_adr   = *+1       ;modifiable relative address
         dex
         dex
         dex
+        nop             ;offset landing zone - forward branch too far
+        nop
+        nop
+        nop
+        nop
         beq range_ok    ;+127 - max forward
         trap            ; bad range
+        nop             ;offset landing zone - tolerate +/-5 offset to branch
+        nop
+        nop
+        nop
+        nop
 range_ok
+        nop
+        nop
+        nop
+        nop
+        nop
         cpy #0
         beq range_end   
         jmp range_loop
