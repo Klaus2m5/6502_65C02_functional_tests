@@ -1,7 +1,7 @@
 ;
 ; 6 5 0 2   F U N C T I O N A L   T E S T
 ;
-; Copyright (C) 2012-2014  Klaus Dormann
+; Copyright (C) 2012-2015  Klaus Dormann
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 14-dec-2014
+; version 23-aug-2015
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -69,6 +69,7 @@
 ;   16-aug-2013  added error report to standard output option
 ;   13-dec-2014  added binary/decimal opcode table switch test
 ;   14-dec-2014  improved relative address test
+;   23-aug-2015  added option to disable self modifying tests
 
 
 ; C O N F I G U R A T I O N
@@ -101,8 +102,12 @@ data_segment = $200
 
 ;code_segment memory start address, 13kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
-;parts of the code are self modifying and must reside in RAM
 code_segment = $400  
+
+;self modifying code may be disabled to allow running in ROM
+;0=parts of the code are self modifying and must reside in RAM
+;1=tests disabled: branch range, immediate AND, ORA, EOR, ADC & SBC
+disable_selfmod = 0
 
 ;report errors through I/O channel (0=use standard self trap loops, 1=include
 ;report.i65 as I/O channel, add 3.5 kB)
@@ -483,6 +488,7 @@ check_ram   macro
             lda #0
             sta zpt         ;set low byte of indirect pointer
             sta zpt+3       ;checksum high byte
+          if disable_selfmod = 0
             sta range_adr   ;reset self modifying code
             sta tandi1
             sta tandi2
@@ -494,6 +500,7 @@ check_ram   macro
             sta chkdsbi
             sta chkadi
             sta chksbi
+          endif
             clc
             ldx #zp_bss-zero_page ;zeropage - write test area
 ccs3\?      adc zero_page,x
@@ -697,6 +704,7 @@ ld_vect lda vec_init,x
         lda #0 
         sta zpt         ;set low byte of indirect pointer
         sta ram_chksm+1 ;checksum high byte
+      if disable_selfmod = 0
         sta range_adr   ;reset self modifying code
         sta tandi1
         sta tandi2
@@ -708,6 +716,7 @@ ld_vect lda vec_init,x
         sta chkdsbi
         sta chkadi
         sta chksbi
+      endif
         clc
         ldx #zp_bss-zero_page ;zeropage - write test area
 gcs3    adc zero_page,x
@@ -733,6 +742,7 @@ gcs4    iny
     endif
         next_test            
 
+    if disable_selfmod = 0
 ;testing relative addressing with BEQ
         ldy #$fe        ;testing maximum range, not -1/-2 (invalid/self adr)
 range_loop
@@ -1042,6 +1052,7 @@ range_ok
         beq range_end   
         jmp range_loop
 range_end               ;range test successful
+    endif
         next_test
 
 ;partial test BNE & CMP, CPX, CPY immediate
@@ -4598,6 +4609,7 @@ tdec17
 
 ; testing logical instructions - AND EOR ORA all addressing modes
 ; AND
+    if disable_selfmod = 0
         ldx #3      ;immediate - self modifying code
 tand    lda zpAN,x
         sta tandi1
@@ -4616,7 +4628,8 @@ tandi2  equ *+1     ;target for immediate operand
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tand1
-
+    endif
+    
         ldx #3      ;zp
 tand2    lda zpAN,x
         sta zpt
@@ -4734,6 +4747,7 @@ tand15
         next_test
 
 ; EOR
+    if disable_selfmod = 0
         ldx #3      ;immediate - self modifying code
 teor    lda zpEO,x
         sta teori1
@@ -4752,7 +4766,8 @@ teori2  equ *+1     ;target for immediate operand
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl teor1
-
+    endif
+    
         ldx #3      ;zp
 teor2    lda zpEO,x
         sta zpt
@@ -4870,6 +4885,7 @@ teor15
         next_test
 
 ; OR
+    if disable_selfmod = 0
         ldx #3      ;immediate - self modifying code
 tora    lda zpOR,x
         sta torai1
@@ -4888,7 +4904,8 @@ torai2  equ *+1     ;target for immediate operand
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tora1
-
+    endif
+    
         ldx #3      ;zp
 tora2   lda zpOR,x
         sta zpt
@@ -5272,6 +5289,7 @@ chkdad
         cmp adrh
         trap_ne         ;bad carry
         plp
+    if disable_selfmod = 0
 ; decimal ADC / SBC #
         php             ;save carry for subtract
         lda ad2
@@ -5301,6 +5319,7 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+    endif
 ; decimal ADC / SBC zp,x
         php             ;save carry for subtract
         lda ad1
@@ -5481,6 +5500,7 @@ ckad1   pla
         cmp adrf
         trap_ne         ;bad flags
         plp
+    if disable_selfmod = 0
 ; binary ADC / SBC #
         php             ;save carry for subtract
         lda ad2
@@ -5510,6 +5530,7 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+    endif
 ; binary ADC / SBC zp,x
         php             ;save carry for subtract
         lda ad1
