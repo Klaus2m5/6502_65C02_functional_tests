@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 23-aug-2015
+; version 24-aug-2015
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -70,6 +70,8 @@
 ;   13-dec-2014  added binary/decimal opcode table switch test
 ;   14-dec-2014  improved relative address test
 ;   23-aug-2015  added option to disable self modifying tests
+;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
+;                added small branch offset pretest
 
 
 ; C O N F I G U R A T I O N
@@ -94,7 +96,7 @@ I_flag = 3
 ;                                add 2 if I_flag = 2
 zero_page = $a  
 
-;data_segment memory start address, $5B (91) consecutive Bytes required
+;data_segment memory start address, $6A (106) consecutive Bytes required
 data_segment = $200  
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
@@ -105,8 +107,8 @@ data_segment = $200
 code_segment = $400  
 
 ;self modifying code may be disabled to allow running in ROM
-;0=parts of the code are self modifying and must reside in RAM
-;1=tests disabled: branch range, immediate AND, ORA, EOR, ADC & SBC
+;0=part of the code is self modifying and must reside in RAM
+;1=tests disabled: branch range
 disable_selfmod = 0
 
 ;report errors through I/O channel (0=use standard self trap loops, 1=include
@@ -490,16 +492,6 @@ check_ram   macro
             sta zpt+3       ;checksum high byte
           if disable_selfmod = 0
             sta range_adr   ;reset self modifying code
-            sta tandi1
-            sta tandi2
-            sta teori1
-            sta teori2
-            sta torai1
-            sta torai2
-            sta chkdadi  
-            sta chkdsbi
-            sta chkadi
-            sta chksbi
           endif
             clc
             ldx #zp_bss-zero_page ;zeropage - write test area
@@ -511,7 +503,7 @@ ccs2\?      inx
             bne ccs3\?
             ldx #hi(data_segment) ;set high byte of indirect pointer
             stx zpt+1
-            ldy #lo(data_bss) ;data after write test area
+            ldy #lo(data_bss)+15 ;data after write & execute test area
 ccs5\?      adc (zpt),y
             bcc ccs4\?
             inc zpt+3       ;carry to high byte
@@ -615,6 +607,24 @@ ada2    ds  1               ;operand 2
 sba2    ds  1               ;operand 2 complemented for subtract
         ds  3               ;fill remaining bytes
 data_bss
+    if load_data_direct = 1
+ex_andi and #0              ;execute immediate opcodes
+        rts
+ex_eori eor #0              ;execute immediate opcodes
+        rts
+ex_orai ora #0              ;execute immediate opcodes
+        rts
+ex_adci adc #0              ;execute immediate opcodes
+        rts
+ex_sbci sbc #0              ;execute immediate opcodes
+        rts
+    else
+ex_andi ds  3
+ex_eori ds  3
+ex_orai ds  3
+ex_adci ds  3
+ex_sbci ds  3
+    endif
 abs1    db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f   db  $7f             ;test pattern for compare
 ;loads
@@ -668,6 +678,45 @@ test_num = 0
         jsr report_init
     endif
     
+;pretest small branch offset
+        ldx #5
+        jmp psb_test
+psb_bwok
+        ldy #5
+        bne psb_forw
+        trap        ;branch should be taken
+        dey         ;forward landing zone
+        dey
+        dey
+        dey
+        dey
+psb_forw
+        dey
+        dey
+        dey
+        dey
+        dey
+        beq psb_fwok
+        trap        ;forward offset
+
+        dex         ;backward landing zone
+        dex
+        dex
+        dex
+        dex
+psb_back
+        dex
+        dex
+        dex
+        dex
+        dex
+        beq psb_bwok
+        trap        ;backward offset
+psb_test
+        bne psb_back
+        trap        ;branch should be taken
+psb_fwok
+        
 ;initialize BSS segment
     if load_data_direct != 1
         ldx #zp_end-zp_init-1
@@ -706,16 +755,6 @@ ld_vect lda vec_init,x
         sta ram_chksm+1 ;checksum high byte
       if disable_selfmod = 0
         sta range_adr   ;reset self modifying code
-        sta tandi1
-        sta tandi2
-        sta teori1
-        sta teori2
-        sta torai1
-        sta torai2
-        sta chkdadi  
-        sta chkdsbi
-        sta chkadi
-        sta chksbi
       endif
         clc
         ldx #zp_bss-zero_page ;zeropage - write test area
@@ -727,7 +766,7 @@ gcs2    inx
         bne gcs3
         ldx #hi(data_segment) ;set high byte of indirect pointer
         stx zpt+1
-        ldy #lo(data_bss) ;data after write test area
+        ldy #lo(data_bss)+15 ;data after write & execute test area
 gcs5    adc (zpt),y
         bcc gcs4
         inc ram_chksm+1 ;carry to high byte
@@ -773,7 +812,7 @@ range_fw
         dex
         dex
         dex
-        ;relative address target field with branch under test in the middle                       
+        ;relative address target field with branch under test in the middle
         dex             ;-128 - max backward
         dex
         dex
@@ -4609,26 +4648,22 @@ tdec17
 
 ; testing logical instructions - AND EOR ORA all addressing modes
 ; AND
-    if disable_selfmod = 0
-        ldx #3      ;immediate - self modifying code
+        ldx #3          ;immediate
 tand    lda zpAN,x
-        sta tandi1
+        sta ex_andi+1   ;set AND # operand
         set_ax  absANa,0
-tandi1  equ *+1     ;target for immediate operand
-        and #99
+        jsr ex_andi     ;execute AND # in RAM
         tst_ax  absrlo,absflo,0
         dex
         bpl tand
         ldx #3
 tand1   lda zpAN,x
-        sta tandi2
+        sta ex_andi+1   ;set AND # operand
         set_ax  absANa,$ff
-tandi2  equ *+1     ;target for immediate operand
-        and #99
+        jsr ex_andi     ;execute AND # in RAM
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tand1
-    endif
     
         ldx #3      ;zp
 tand2    lda zpAN,x
@@ -4747,26 +4782,22 @@ tand15
         next_test
 
 ; EOR
-    if disable_selfmod = 0
-        ldx #3      ;immediate - self modifying code
+        ldx #3          ;immediate - self modifying code
 teor    lda zpEO,x
-        sta teori1
+        sta ex_eori+1   ;set EOR # operand
         set_ax  absEOa,0
-teori1  equ *+1     ;target for immediate operand
-        eor #99
+        jsr ex_eori     ;execute EOR # in RAM
         tst_ax  absrlo,absflo,0
         dex
         bpl teor
         ldx #3
 teor1   lda zpEO,x
-        sta teori2
+        sta ex_eori+1   ;set EOR # operand
         set_ax  absEOa,$ff
-teori2  equ *+1     ;target for immediate operand
-        eor #99
+        jsr ex_eori     ;execute EOR # in RAM
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl teor1
-    endif
     
         ldx #3      ;zp
 teor2    lda zpEO,x
@@ -4885,26 +4916,22 @@ teor15
         next_test
 
 ; OR
-    if disable_selfmod = 0
-        ldx #3      ;immediate - self modifying code
+        ldx #3          ;immediate - self modifying code
 tora    lda zpOR,x
-        sta torai1
+        sta ex_orai+1   ;set ORA # operand
         set_ax  absORa,0
-torai1  equ *+1     ;target for immediate operand
-        ora #99
+        jsr ex_orai     ;execute ORA # in RAM
         tst_ax  absrlo,absflo,0
         dex
         bpl tora
         ldx #3
 tora1   lda zpOR,x
-        sta torai2
+        sta ex_orai+1   ;set ORA # operand
         set_ax  absORa,$ff
-torai2  equ *+1     ;target for immediate operand
-        ora #99
+        jsr ex_orai     ;execute ORA # in RAM
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tora1
-    endif
     
         ldx #3      ;zp
 tora2   lda zpOR,x
@@ -5224,17 +5251,17 @@ bin_rti_ret
 ;   designated write areas.
         check_ram
 ; *** DEBUG INFO ***
-; to debug checksum errors uncomment check_ram in the next_test macro to 
+; to debug checksum errors uncomment check_ram in the next_test macro to
 ; narrow down the responsible opcode.
 ; may give false errors when monitor, OS or other background activity is
 ; allowed during previous tests.
 
 
-; S U C C E S S ************************************************       
+; S U C C E S S ************************************************
 ; -------------       
         success         ;if you get here everything went well
 ; -------------       
-; S U C C E S S ************************************************ 
+; S U C C E S S ************************************************
         jmp start       ;run again      
 
 ; core subroutine of the decimal add/subtract test
@@ -5289,14 +5316,12 @@ chkdad
         cmp adrh
         trap_ne         ;bad carry
         plp
-    if disable_selfmod = 0
 ; decimal ADC / SBC #
         php             ;save carry for subtract
         lda ad2
-        sta chkdadi     ;self modify immediate
+        sta ex_adci+1   ;set ADC # operand
         lda ad1
-chkdadi = * + 1         ;operand of the immediate ADC
-        adc #0          ;perform add
+        jsr ex_adci     ;execute ADC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
@@ -5307,10 +5332,9 @@ chkdadi = * + 1         ;operand of the immediate ADC
         plp
         php             ;save carry for next add
         lda sb2
-        sta chkdsbi     ;self modify immediate
+        sta ex_sbci+1   ;set SBC # operand
         lda ad1
-chkdsbi = * + 1         ;operand of the immediate SBC
-        sbc #0          ;perform subtract
+        jsr ex_sbci     ;execute SBC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
@@ -5319,7 +5343,6 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
-    endif
 ; decimal ADC / SBC zp,x
         php             ;save carry for subtract
         lda ad1
@@ -5500,14 +5523,12 @@ ckad1   pla
         cmp adrf
         trap_ne         ;bad flags
         plp
-    if disable_selfmod = 0
 ; binary ADC / SBC #
         php             ;save carry for subtract
         lda ad2
-        sta chkadi      ;self modify immediate
+        sta ex_adci+1   ;set ADC # operand
         lda ad1
-chkadi  = * + 1         ;operand of the immediate ADC
-        adc #0          ;perform add
+        jsr ex_adci     ;execute ADC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
@@ -5518,10 +5539,9 @@ chkadi  = * + 1         ;operand of the immediate ADC
         plp
         php             ;save carry for next add
         lda sb2
-        sta chksbi      ;self modify immediate
+        sta ex_sbci+1   ;set SBC # operand
         lda ad1
-chksbi  = * + 1         ;operand of the immediate SBC
-        sbc #0          ;perform subtract
+        jsr ex_sbci     ;execute SBC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
@@ -5530,7 +5550,6 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
-    endif
 ; binary ADC / SBC zp,x
         php             ;save carry for subtract
         lda ad1
@@ -5815,7 +5834,7 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
     if load_data_direct != 1
 zp_init
 zp1_    db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
-zp7f_   db  $7f             ;test pattern for compare  
+zp7f_   db  $7f             ;test pattern for compare
 ;logical zeropage operands
 zpOR_   db  0,$1f,$71,$80   ;test pattern for OR
 zpAN_   db  $0f,$ff,$7f,$80 ;test pattern for AND
@@ -5855,12 +5874,22 @@ zp_end
         ERROR ERROR ERROR   ;mismatch between bss and zeropage data
     endif 
 data_init
+ex_and_ and #0              ;execute immediate opcodes
+        rts
+ex_eor_ eor #0              ;execute immediate opcodes
+        rts
+ex_ora_ ora #0              ;execute immediate opcodes
+        rts
+ex_adc_ adc #0              ;execute immediate opcodes
+        rts
+ex_sbc_ sbc #0              ;execute immediate opcodes
+        rts
 abs1_   db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f_  db  $7f             ;test pattern for compare
 ;loads
 fLDx_   db  fn,fn,0,fz      ;expected flags for load
 ;shifts
-rASL_                       ;expected result ASL & ROL -carry  
+rASL_                       ;expected result ASL & ROL -carry
 rROL_   db  $86,$04,$82,0   ; "
 rROLc_  db  $87,$05,$83,1   ;expected result ROL +carry
 rLSR_                       ;expected result LSR & ROR -carry

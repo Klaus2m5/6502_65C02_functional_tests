@@ -22,7 +22,7 @@
 ; The 6502_functional_test is a prerequisite to this test.
 ; NMI, IRQ, BRK, STP & WAI are covered in the 6502_interrupt_test.
 ; 
-; version 23-aug-2015
+; version 24-aug-2015
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -61,7 +61,8 @@
 ;   23-jul-2013  fixed BRA out of range due to larger trap macros
 ;                added RAM integrity check
 ;   16-aug-2013  added error report to standard output option
-;   23-aug-2015  added option to disable self modifying tests
+;   23-aug-2015  change revoked
+;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
 
 
 ; C O N F I G U R A T I O N
@@ -85,7 +86,7 @@ I_flag = 3
 ;                                add 2 if I_flag = 2
 zero_page = $a  
 
-;data_segment memory start address, $5D (93) consecutive Bytes required
+;data_segment memory start address, $63 (99) consecutive Bytes required
 ; + 12 Bytes at data_segment + $f9 (JMP indirect page cross test)
 data_segment = $200
     if (data_segment & $ff) != 0
@@ -95,11 +96,6 @@ data_segment = $200
 ;code_segment memory start address, 10kB of consecutive space required
 ;                                   add 1 kB if I_flag = 2
 code_segment = $400  
-
-;self modifying code may be disabled to allow running in ROM
-;0=parts of the code are self modifying and must reside in RAM
-;1=tests disabled: immediate ADC & SBC decimal
-disable_selfmod = 0
 
 ;added WDC only opcodes WAI & STP (0=test as NOPs, >0=no test)
 wdc_op = 1
@@ -504,10 +500,6 @@ check_ram   macro
 ccs1\?      sta jxi_tab,x   ;JMP indirect page cross area
             dex
             bpl ccs1\?
-          if disable_selfmod = 0
-            sta chkdadi     ;self modifying code
-            sta chkdsbi
-          endif
             clc
             ldx #zp_bss-zero_page ;zeropage - write test area
 ccs3\?      adc zero_page,x
@@ -518,7 +510,7 @@ ccs2\?      inx
             bne ccs3\?
             ldx #hi(data_segment) ;set high byte of indirect pointer
             stx zpt+1
-            ldy #lo(data_bss) ;data after write test area
+            ldy #lo(data_bss)+6 ;data after write & execute test area
 ccs5\?      adc (zpt),y
             bcc ccs4\?
             inc zpt+3       ;carry to high byte
@@ -620,6 +612,15 @@ ada2    ds  1               ;operand 2
 sba2    ds  1               ;operand 2 complemented for subtract
         ds  3               ;fill remaining bytes
 data_bss
+    if load_data_direct = 1
+ex_adci adc #0              ;execute immediate opcodes
+        rts
+ex_sbci sbc #0              ;execute immediate opcodes
+        rts
+    else
+ex_adci ds  3
+ex_sbci ds  3
+    endif
 abs1    db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f   db  $7f             ;test pattern for compare
 ;loads
@@ -717,10 +718,6 @@ ld_vect lda vec_init,x
 gcs1    sta jxi_tab,x   ;JMP indirect page cross area
         dex
         bpl gcs1
-      if disable_selfmod = 0
-        sta chkdadi     ;self modifying code
-        sta chkdsbi
-      endif
         clc
         ldx #zp_bss-zero_page ;zeropage - write test area
 gcs3    adc zero_page,x
@@ -731,7 +728,7 @@ gcs2    inx
         bne gcs3
         ldx #hi(data_segment) ;set high byte of indirect pointer
         stx zpt+1
-        ldy #lo(data_bss) ;data after write test area
+        ldy #lo(data_bss)+6 ;data after write & execute test area
 gcs5    adc (zpt),y
         bcc gcs4
         inc ram_chksm+1 ;carry to high byte
@@ -2288,37 +2285,33 @@ chkdad
         cmp adrf
         trap_ne         ;bad flags
         plp
-    if disable_selfmod = 0
 ; decimal ADC / SBC #
         php             ;save carry for subtract
         lda ad2
-        sta chkdadi     ;self modify immediate
+        sta ex_adci+1   ;set ADC # operand
         lda ad1
-chkdadi = * + 1         ;operand of the immediate ADC
-        adc #0          ;perform add
+        jsr ex_adci     ;execute ADC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
-        and #$83        ;mask N-----ZC
-        cmp adrf
-        trap_ne         ;bad flags
+        and #1          ;mask carry
+        cmp adrh
+        trap_ne         ;bad carry
         plp
         php             ;save carry for next add
         lda sb2
-        sta chkdsbi     ;self modify immediate
+        sta ex_sbci+1   ;set SBC # operand
         lda ad1
-chkdsbi = * + 1         ;operand of the immediate SBC
-        sbc #0          ;perform subtract
+        jsr ex_sbci     ;execute SBC # in RAM
         php          
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
-        and #$83        ;mask N-----ZC
-        cmp adrf
-        trap_ne         ;bad flags
+        and #1          ;mask carry
+        cmp adrh
+        trap_ne         ;bad carry
         plp
-    endif
 ; decimal ADC / SBC zp,x
         php             ;save carry for subtract
         lda ad1
@@ -2667,6 +2660,10 @@ zp_end
         ERROR ERROR ERROR   ;mismatch between bss and zeropage data
     endif 
 data_init
+ex_adc_ adc #0              ;execute immediate opcodes
+        rts
+ex_sbc_ sbc #0              ;execute immediate opcodes
+        rts
 abs1_   db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f_  db  $7f             ;test pattern for compare
 ;loads
