@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 24-aug-2015
+; version 21-oct-2015
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -72,6 +72,7 @@
 ;   23-aug-2015  added option to disable self modifying tests
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
 ;                added small branch offset pretest
+;   21-oct-2015  added option to disable decimal mode ADC & SBC tests
 
 
 ; C O N F I G U R A T I O N
@@ -119,6 +120,10 @@ report = 0
 ;set lowest non RAM or RAM mirror address page (-1=disable, 0=64k, $40=16k)
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
 ram_top = -1
+
+;disable test decimal mode ADC & SBC, 0=enable, 1=disable,
+;2=disable including decimal flag in processor status
+disable_decimal = 0
 
         noopt       ;do not take shortcuts
 
@@ -244,12 +249,16 @@ fnv     equ minus+overfl
 
 fao     equ break+reserv    ;bits always on after PHP, BRK
 fai     equ fao+intdis      ;+ forced interrupt disable
+faod    equ fao+decmode     ;+ ignore decimal
+faid    equ fai+decmode     ;+ ignore decimal
 m8      equ $ff             ;8 bit mask
 m8i     equ $ff&~intdis     ;8 bit mask - interrupt disable
 
 ;macros to allow masking of status bits.
+;masking test of decimal bit
 ;masking of interrupt enable/disable on load and compare
 ;masking of always on bits after PHP or BRK (unused & break) on compare
+    if disable_decimal < 2
         if I_flag = 0
 load_flag   macro
             lda #\1&m8i         ;force enable interrupts (mask I)
@@ -298,6 +307,64 @@ eor_flag    macro
             eor #\1|fao         ;invert expected flags + always on bits
             endm
         endif
+    else
+        if I_flag = 0
+load_flag   macro
+            lda #\1&m8i         ;force enable interrupts (mask I)
+            endm
+cmp_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(\1|faod)&m8i  ;I_flag is always enabled + always on bits
+            endm
+eor_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            eor #(\1&m8i|faod)  ;mask I, invert expected flags + always on bits
+            endm
+        endif
+        if I_flag = 1
+load_flag   macro
+            lda #\1|intdis      ;force disable interrupts
+            endm
+cmp_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(\1|faid)&m8   ;I_flag is always disabled + always on bits
+            endm
+eor_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            eor #(\1|faid)      ;invert expected flags + always on bits + I
+            endm
+        endif
+        if I_flag = 2
+load_flag   macro
+            lda #\1
+            ora flag_I_on       ;restore I-flag
+            and flag_I_off
+            endm
+cmp_flag    macro
+            eor flag_I_on       ;I_flag is never changed
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(\1|faod)&m8i  ;expected flags + always on bits, mask I
+            endm
+eor_flag    macro
+            eor flag_I_on       ;I_flag is never changed
+            ora #decmode        ;ignore decimal mode bit
+            eor #(\1&m8i|faod)  ;mask I, invert expected flags + always on bits
+            endm
+        endif
+        if I_flag = 3
+load_flag   macro
+            lda #\1             ;allow test to change I-flag (no mask)
+            endm
+cmp_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(\1|faod)&m8   ;expected flags + always on bits
+            endm
+eor_flag    macro
+            ora #decmode        ;ignore decimal mode bit
+            eor #\1|faod        ;invert expected flags + always on bits
+            endm
+        endif
+    endif
 
 ;macros to set (register|memory|zeropage) & status
 set_stat    macro       ;setting flags in the processor status register
@@ -501,9 +568,9 @@ ccs3\?      adc zero_page,x
             clc
 ccs2\?      inx
             bne ccs3\?
-            ldx #hi(data_segment) ;set high byte of indirect pointer
+            ldx #hi(abs1)   ;set high byte of indirect pointer
             stx zpt+1
-            ldy #lo(data_bss)+15 ;data after write & execute test area
+            ldy #lo(abs1)   ;data after write & execute test area
 ccs5\?      adc (zpt),y
             bcc ccs4\?
             inc zpt+3       ;carry to high byte
@@ -764,9 +831,9 @@ gcs3    adc zero_page,x
         clc
 gcs2    inx
         bne gcs3
-        ldx #hi(data_segment) ;set high byte of indirect pointer
+        ldx #hi(abs1)   ;set high byte of indirect pointer
         stx zpt+1
-        ldy #lo(data_bss)+15 ;data after write & execute test area
+        ldy #lo(abs1)   ;data after write & execute test area
 gcs5    adc (zpt),y
         bcc gcs4
         inc ram_chksm+1 ;carry to high byte
@@ -4666,7 +4733,7 @@ tand1   lda zpAN,x
         bpl tand1
     
         ldx #3      ;zp
-tand2    lda zpAN,x
+tand2   lda zpAN,x
         sta zpt
         set_ax  absANa,0
         and zpt
@@ -5101,6 +5168,7 @@ tadd1   ora adrh        ;merge C to expected flags
         lda ad2         
         sta adrl
         bne tadd        ;iterate op2
+    if disable_decimal < 1
         next_test
 
 ; decimal add/subtract test
@@ -5239,7 +5307,8 @@ bin_rti_ret
         adc #$55
         cmp #$aa
         trap_ne         ;expected binary result after rti D=0
-
+    endif
+    
         lda test_case
         cmp #test_num
         trap_ne         ;previous test is out of sequence
@@ -5264,6 +5333,7 @@ bin_rti_ret
 ; S U C C E S S ************************************************
         jmp start       ;run again      
 
+    if disable_decimal < 1
 ; core subroutine of the decimal add/subtract test
 ; *** WARNING - tests documented behavior only! ***
 ;   only valid BCD operands are tested, N V Z flags are ignored
@@ -5459,6 +5529,7 @@ chkdad
         trap_ne         ;bad carry
         plp
         rts
+    endif
 
 ; core subroutine of the full binary add/subtract test
 ; iterates through all combinations of operands and carry input
