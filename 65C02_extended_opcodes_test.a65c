@@ -63,6 +63,7 @@
 ;   16-aug-2013  added error report to standard output option
 ;   23-aug-2015  change revoked
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
+;   09-feb-2017  fixed RMB/SMB tested when they shouldn't be tested
 
 
 ; C O N F I G U R A T I O N
@@ -1867,7 +1868,7 @@ tbt2
         trap_ne     ;sp push/pop mismatch
         next_test    
 
-    if rkwl_wdc_op
+    if rkwl_wdc_op = 1
 ; testing RMB, SMB - zp
 rmbt    macro       ;\1 = bitnum
         lda #$ff
