@@ -63,6 +63,7 @@
 ;   16-aug-2013  added error report to standard output option
 ;   23-aug-2015  change revoked
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
+;   09-feb-2017  fixed RMB/SMB tested when they shouldn't be tested
 
 
 ; C O N F I G U R A T I O N
