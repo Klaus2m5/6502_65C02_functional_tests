@@ -1,7 +1,7 @@
 ;
 ; 6 5 C 0 2   E X T E N D E D   O P C O D E S   T E S T
 ;
-; Copyright (C) 2013-2015  Klaus Dormann
+; Copyright (C) 2013-2017  Klaus Dormann
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 ; The 6502_functional_test is a prerequisite to this test.
 ; NMI, IRQ, BRK, STP & WAI are covered in the 6502_interrupt_test.
 ; 
-; version 24-aug-2015
+; version 09-feb-2017
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -63,6 +63,7 @@
 ;   16-aug-2013  added error report to standard output option
 ;   23-aug-2015  change revoked
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
+;   28-aug-2015  fixed decimal adc/sbc immediate only testing carry
 ;   09-feb-2017  fixed RMB/SMB tested when they shouldn't be tested
 
 
@@ -509,9 +510,9 @@ ccs3\?      adc zero_page,x
             clc
 ccs2\?      inx
             bne ccs3\?
-            ldx #hi(data_segment) ;set high byte of indirect pointer
+            ldx #hi(abs1)   ;set high byte of indirect pointer
             stx zpt+1
-            ldy #lo(data_bss)+6 ;data after write & execute test area
+            ldy #lo(abs1)   ;data after write & execute test area
 ccs5\?      adc (zpt),y
             bcc ccs4\?
             inc zpt+3       ;carry to high byte
@@ -727,9 +728,9 @@ gcs3    adc zero_page,x
         clc
 gcs2    inx
         bne gcs3
-        ldx #hi(data_segment) ;set high byte of indirect pointer
+        ldx #hi(abs1)   ;set high byte of indirect pointer
         stx zpt+1
-        ldy #lo(data_bss)+6 ;data after write & execute test area
+        ldy #lo(abs1)   ;data after write & execute test area
 gcs5    adc (zpt),y
         bcc gcs4
         inc ram_chksm+1 ;carry to high byte
@@ -2296,9 +2297,9 @@ chkdad
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
-        and #1          ;mask carry
-        cmp adrh
-        trap_ne         ;bad carry
+        and #$83        ;mask N-----ZC
+        cmp adrf
+        trap_ne         ;bad flags
         plp
         php             ;save carry for next add
         lda sb2
@@ -2309,9 +2310,9 @@ chkdad
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
-        and #1          ;mask carry
-        cmp adrh
-        trap_ne         ;bad carry
+        and #$83        ;mask N-----ZC
+        cmp adrf
+        trap_ne         ;bad flags
         plp
 ; decimal ADC / SBC zp,x
         php             ;save carry for subtract
@@ -2752,4 +2753,3 @@ ji_px   nop             ;low address byte matched with ji_ret
     endif
 
         end start
-            
