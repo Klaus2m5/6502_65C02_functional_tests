@@ -20,9 +20,9 @@
 ; This program is designed to test all additional 65C02 opcodes, addressing
 ; modes and functionality not available in the NMOS version of the 6502.
 ; The 6502_functional_test is a prerequisite to this test.
-; NMI, IRQ, BRK, STP & WAI are covered in the 6502_interrupt_test.
+; NMI, IRQ, STP & WAI are covered in the 6502_interrupt_test.
 ; 
-; version 09-feb-2017
+; version 04-dec-2017
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -65,6 +65,10 @@
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
 ;   28-aug-2015  fixed decimal adc/sbc immediate only testing carry
 ;   09-feb-2017  fixed RMB/SMB tested when they shouldn't be tested
+;   04-dec-2017  fixed BRK not tested for actually going through the IRQ vector
+;                added option to skip the remainder of a failing test
+;                in report.i65
+;                added skip override to undefined opcode as NOP test
 
 
 ; C O N F I G U R A T I O N
@@ -105,6 +109,10 @@ wdc_op = 1
 ;added Rockwell & WDC opcodes BBR, BBS, RMB & SMB
 ;(0=test as NOPs, 1=full test, >1=no test) 
 rkwl_wdc_op = 1
+
+;skip testing all undefined opcodes override
+;0=test as NOP, >0=skip
+skip_nop = 0
 
 ;report errors through I/O channel (0=use standard self trap loops, 1=include
 ;report.i65 as I/O channel, add 3 kB)
@@ -552,6 +560,9 @@ test_num = test_num + 1
         bss                 ;uninitialized segment, copy of data at end of code!
     endif
         org zero_page
+;break test interrupt save
+irq_a   ds  1               ;a register
+irq_x   ds  1               ;x register
     if I_flag = 2
 ;masking for I bit in status
 flag_I_on   ds  1           ;or mask to load flags   
@@ -1131,7 +1142,8 @@ nop_test    macro       ;\1 = opcode, \2 = # of bytes
             cpx #0
             trap_ne         ;x changed
             endm
-            
+
+    if skip_nop = 0
         nop_test $02,2
         nop_test $22,2
         nop_test $42,2
@@ -1215,6 +1227,7 @@ nop_test    macro       ;\1 = opcode, \2 = # of bytes
         nop_test $db,1
     endif
         next_test
+    endif
             
 ; jump indirect (test page cross bug is fixed)
         ldx #3          ;prepare table
@@ -1310,10 +1323,59 @@ jxp_ok
 
     if ROM_vectors = 1
 ; test BRK clears decimal mode
-        sed
+        load_flag 0     ;with interrupts enabled if allowed!
+        pha
+        lda #'B'
+        ldx #'R'
+        ldy #'K'
+        plp             ;N=0, V=0, Z=0, C=0
         brk
-        nop
-brk_ret
+        dey             ;should not be executed
+brk_ret0                ;address of break return
+        php             ;either SP or Y count will fail, if we do not hit
+        dey
+        dey
+        dey
+        cmp #'B'^$aa    ;returned registers OK?
+        ;the IRQ vector was never executed if A & X stay unmodified
+        trap_ne
+        cpx #'R'+1
+        trap_ne
+        cpy #'K'-6
+        trap_ne
+        pla             ;returned flags OK (unchanged)?
+        cmp_flag 0
+        trap_ne
+        tsx             ;sp?
+        cpx #$ff
+        trap_ne
+;pass 2
+        load_flag $ff   ;with interrupts disabled if allowed!
+        pha
+        lda #$ff-'B'
+        ldx #$ff-'R'
+        ldy #$ff-'K'
+        plp             ;N=1, V=1, Z=1, C=1
+        brk
+        dey             ;should not be executed
+brk_ret1                ;address of break return
+        php             ;either SP or Y count will fail, if we do not hit
+        dey
+        dey
+        dey
+        cmp #($ff-'B')^$aa  ;returned registers OK?
+        ;the IRQ vector was never executed if A & X stay unmodified
+        trap_ne
+        cpx #$ff-'R'+1
+        trap_ne
+        cpy #$ff-'K'-6
+        trap_ne
+        pla             ;returned flags OK (unchanged)?
+        cmp_flag $ff
+        trap_ne
+        tsx             ;sp?
+        cpx #$ff
+        trap_ne
         next_test
     endif
  
@@ -2534,6 +2596,7 @@ test_ji
         nop
         nop
         trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
 
 ; target for the jump indirect test
 jxi_adr dw  trap_ind
@@ -2578,6 +2641,7 @@ test_jxi
         nop
         nop
         trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
 
 ; JMP (abs,x) with bad x
         nop
@@ -2586,33 +2650,96 @@ trap_ind
         nop
         nop
         trap            ;near miss indexed indirect jump
+        jmp start       ;catastrophic error - cannot continue
 
 ;trap in case of unexpected IRQ, NMI, BRK, RESET
 nmi_trap
         trap            ;check stack for conditions at NMI
+        jmp start       ;catastrophic error - cannot continue
 res_trap
         trap            ;unexpected RESET
-irq_trap
-        php             ;save decimal flag
+        jmp start       ;catastrophic error - cannot continue
+
+        dey
+        dey
+irq_trap                ;BRK test or unextpected BRK or IRQ
+        php             ;either SP or Y count will fail, if we do not hit
+        dey
+        dey
+        dey
+        ;next traps could be caused by unexpected BRK or IRQ
+        ;check stack for BREAK and originating location
+        ;possible jump/branch into weeds (uninitialized space)
+        cmp #$ff-'B'    ;BRK pass 2 registers loaded?
+        beq break2
+        cmp #'B'        ;BRK pass 1 registers loaded?
+        trap_ne
+        cpx #'R'
+        trap_ne        
+        cpy #'K'-3
+        trap_ne
+        sta irq_a       ;save registers during break test
+        stx irq_x
         tsx             ;test break on stack
         lda $102,x
-        and #break
-        trap_eq         ;check stack for conditions at IRQ
-    if ROM_vectors = 1
-        pla             ;test decimal mode cleared
-        and #decmode
-        trap_ne         ;decimal mode not cleared after BRK
-        plp             ;pop saved flags
-        pla             ;return address low
-        cmp #lo(brk_ret)
-        trap_ne         ;unexpected BRK
-        pla             ;return address high
-        cmp #hi(brk_ret)
-        trap_ne         ;unexpected BRK
-        jmp brk_ret
-    else
-        trap_ne         ;check stack for conditions at BRK
-    endif
+        cmp_flag 0      ;break test should have B=1 & unused=1 on stack
+        trap_ne         ;possible no break flag on stack
+        pla
+        cmp_flag intdis ;should have added interrupt disable
+        trap_ne
+        tsx
+        cpx #$fc        ;sp -3? (return addr, flags)
+        trap_ne
+        lda $1ff        ;propper return on stack
+        cmp #hi(brk_ret0)
+        trap_ne
+        lda $1fe
+        cmp #lo(brk_ret0)
+        trap_ne
+        load_flag $ff
+        pha
+        ldx irq_x
+        inx             ;return registers with modifications
+        lda irq_a
+        eor #$aa
+        plp             ;N=1, V=1, Z=1, C=1 but original flags should be restored
+        rti
+        trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
+        
+break2                  ;BRK pass 2        
+        cpx #$ff-'R'
+        trap_ne        
+        cpy #$ff-'K'-3
+        trap_ne
+        sta irq_a       ;save registers during break test
+        stx irq_x
+        tsx             ;test break on stack
+        lda $102,x
+        cmp_flag $ff    ;break test should have B=1
+        trap_ne         ;possibly no break flag on stack
+        pla
+        cmp_flag $ff-decmode ;actual passed flags should have decmode cleared
+        trap_ne
+        tsx
+        cpx #$fc        ;sp -3? (return addr, flags)
+        trap_ne
+        lda $1ff        ;propper return on stack
+        cmp #hi(brk_ret1)
+        trap_ne
+        lda $1fe
+        cmp #lo(brk_ret1)
+        trap_ne
+        load_flag intdis
+        pha      
+        ldx irq_x
+        inx             ;return registers with modifications
+        lda irq_a
+        eor #$aa
+        plp             ;N=0, V=0, Z=0, C=0 but original flags should be restored
+        rti
+        trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
         
     if report = 1
         include "report.i65"

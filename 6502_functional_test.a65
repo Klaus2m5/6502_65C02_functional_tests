@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 21-oct-2015
+; version 04-dec-2017
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 from http://www.kingswood-consulting.co.uk/assemblers/
@@ -73,6 +73,9 @@
 ;   24-aug-2015  all self modifying immediate opcodes now execute in data RAM
 ;                added small branch offset pretest
 ;   21-oct-2015  added option to disable decimal mode ADC & SBC tests
+;   04-dec-2017  fixed BRK only tested with interrupts enabled
+;                added option to skip the remainder of a failing test
+;                in report.i65
 
 
 ; C O N F I G U R A T I O N
@@ -1608,38 +1611,84 @@ jsr_ret = *-1           ;last address of jsr = return address
 
 ; break & return from interrupt
     if ROM_vectors = 1
-        set_stat 0
+        load_flag 0     ;with interrupts enabled if allowed!
+        pha
         lda #'B'
         ldx #'R'
-        ldy #'K'        ;N=0, V=0, Z=0, C=0
+        ldy #'K'
+        plp             ;N=0, V=0, Z=0, C=0
         brk
     else
-        lda #hi brk_ret ;emulated break
+        lda #hi brk_ret0 ;emulated break
         pha
-        lda #lo brk_ret
+        lda #lo brk_ret0
         pha
-        lda #fao        ;set break & unused on stack
+        load_flag fao    ;set break & unused on stack
         pha
-        set_stat intdis
+        load_flag intdis ;during interrupt
+        pha
         lda #'B'
         ldx #'R'
-        ldy #'K'        ;N=0, V=0, Z=0, C=0
+        ldy #'K'
+        plp             ;N=0, V=0, Z=0, C=0
         jmp irq_trap
     endif
         dey             ;should not be executed
-brk_ret                 ;address of break return
+brk_ret0                ;address of break return
         php             ;either SP or Y count will fail, if we do not hit
         dey
         dey
         dey
-        cmp #('B'^$aa)  ;returned registers OK?
+        cmp #'B'^$aa    ;returned registers OK?
+        ;the IRQ vector was never executed if A & X stay unmodified
         trap_ne
-        cpx #('R'+1)
+        cpx #'R'+1
         trap_ne
-        cpy #('K'-6)
+        cpy #'K'-6
         trap_ne
         pla             ;returned flags OK (unchanged)?
         cmp_flag 0
+        trap_ne
+        tsx             ;sp?
+        cpx #$ff
+        trap_ne
+    if ROM_vectors = 1
+        load_flag $ff   ;with interrupts disabled if allowed!
+        pha
+        lda #$ff-'B'
+        ldx #$ff-'R'
+        ldy #$ff-'K'
+        plp             ;N=1, V=1, Z=1, C=1
+        brk
+    else
+        lda #hi brk_ret1 ;emulated break
+        pha
+        lda #lo brk_ret1
+        pha
+        load_flag $ff
+        pha             ;set break & unused on stack
+        pha             ;actual flags
+        lda #$ff-'B'
+        ldx #$ff-'R'
+        ldy #$ff-'K'
+        plp             ;N=1, V=1, Z=1, C=1
+        jmp irq_trap
+    endif
+        dey             ;should not be executed
+brk_ret1                ;address of break return
+        php             ;either SP or Y count will fail, if we do not hit
+        dey
+        dey
+        dey
+        cmp #($ff-'B')^$aa  ;returned registers OK?
+        ;the IRQ vector was never executed if A & X stay unmodified
+        trap_ne
+        cpx #$ff-'R'+1
+        trap_ne
+        cpy #$ff-'K'-6
+        trap_ne
+        pla             ;returned flags OK (unchanged)?
+        cmp_flag $ff
         trap_ne
         tsx             ;sp?
         cpx #$ff
@@ -5808,6 +5857,7 @@ test_ind
         eor #$aa        ;N=1, V=1, Z=0, C=1
         jmp (ptr_ind_ret)
         trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
 
 ; target for the jump subroutine test
         dey
@@ -5848,12 +5898,15 @@ test_jsr
         eor #$aa        ;N=1, V=1, Z=0, C=1
         rts
         trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
         
 ;trap in case of unexpected IRQ, NMI, BRK, RESET - BRK test target
 nmi_trap
         trap            ;check stack for conditions at NMI
+        jmp start       ;catastrophic error - cannot continue
 res_trap
         trap            ;unexpected RESET
+        jmp start       ;catastrophic error - cannot continue
         
         dey
         dey
@@ -5862,41 +5915,81 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         dey
         dey
         dey
-        ;next 4 traps could be caused by unexpected BRK or IRQ
+        ;next traps could be caused by unexpected BRK or IRQ
         ;check stack for BREAK and originating location
         ;possible jump/branch into weeds (uninitialized space)
-        cmp #'B'        ;registers loaded?
+        cmp #$ff-'B'    ;BRK pass 2 registers loaded?
+        beq break2
+        cmp #'B'        ;BRK pass 1 registers loaded?
         trap_ne
         cpx #'R'
         trap_ne        
-        cpy #('K'-3)
+        cpy #'K'-3
         trap_ne
         sta irq_a       ;save registers during break test
         stx irq_x
         tsx             ;test break on stack
         lda $102,x
-        cmp_flag 0      ;break test should have B=1
+        cmp_flag 0      ;break test should have B=1 & unused=1 on stack
         trap_ne         ; - no break flag on stack
         pla
-        cmp #fai        ;should have added interrupt disable
+        cmp_flag intdis ;should have added interrupt disable
         trap_ne
         tsx
         cpx #$fc        ;sp -3? (return addr, flags)
         trap_ne
         lda $1ff        ;propper return on stack
-        cmp #hi(brk_ret)
+        cmp #hi(brk_ret0)
         trap_ne
         lda $1fe
-        cmp #lo(brk_ret)
+        cmp #lo(brk_ret0)
         trap_ne
-        set_stat $ff
+        load_flag $ff
+        pha
         ldx irq_x
         inx             ;return registers with modifications
         lda irq_a
-        eor #$aa        ;N=1, V=1, Z=0, C=1 but original flags should be restored
+        eor #$aa
+        plp             ;N=1, V=1, Z=1, C=1 but original flags should be restored
         rti
         trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
         
+break2                  ;BRK pass 2        
+        cpx #$ff-'R'
+        trap_ne        
+        cpy #$ff-'K'-3
+        trap_ne
+        sta irq_a       ;save registers during break test
+        stx irq_x
+        tsx             ;test break on stack
+        lda $102,x
+        cmp_flag $ff    ;break test should have B=1
+        trap_ne         ; - no break flag on stack
+        pla
+        ora #decmode    ;ignore decmode cleared if 65c02
+        cmp_flag $ff    ;actual passed flags
+        trap_ne
+        tsx
+        cpx #$fc        ;sp -3? (return addr, flags)
+        trap_ne
+        lda $1ff        ;propper return on stack
+        cmp #hi(brk_ret1)
+        trap_ne
+        lda $1fe
+        cmp #lo(brk_ret1)
+        trap_ne
+        load_flag intdis
+        pha      
+        ldx irq_x
+        inx             ;return registers with modifications
+        lda irq_a
+        eor #$aa
+        plp             ;N=0, V=0, Z=0, C=0 but original flags should be restored
+        rti
+        trap            ;runover protection
+        jmp start       ;catastrophic error - cannot continue
+
     if report = 1
         include "report.i65"
     endif

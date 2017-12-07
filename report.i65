@@ -78,6 +78,8 @@ rabs    jsr rspace
 ;ask to continue
         rprt rmsg_cont
 rerr1   jsr rget
+        cmp #'S'
+        beq rskip
         cmp #'C'
         bne rerr1        
 ;restore registers
@@ -87,7 +89,44 @@ rerr1   jsr rget
         tax
         pla 
         plp
-        rts   
+        rts
+;skip the current test
+rskip   lda #$f0            ;already end of tests?
+        cmp test_case
+        beq rerr1           ;skip is not available
+        ldx #$ff            ;clear stack
+        txs
+        inc test_case       ;next test
+        lda #lo(start)      ;find begin of test
+        sta zpt
+        lda #hi(start)
+        sta zpt+1
+rskipl1 ldy #4              ;search pattern
+rskipl2 lda (zpt),y         ;next byte
+        cmp rmark,y
+        bne rskipnx         ;no match
+        dey
+        bmi rskipf          ;found pattern        
+        cpy #1              ;skip immediate value
+        bne rskipl2
+        dey
+        beq rskipl2
+        
+rskipnx inc zpt             ;next RAM location
+        bne rskipl1
+        inc zpt+1
+        bne rskipl1
+
+rskipf  ldy #1              ;pattern found - check test number
+        lda (zpt),y         ;test number
+        cmp #$f0            ;end of last test?
+        beq rskipe          ;ask to rerun all
+        cmp test_case       ;is next test?
+        bne rskipnx         ;continue searching
+rskipe  jmp (zpt)           ;start next test or rerun at end of tests
+        
+rmark   lda #0              ;begin of test search pattern
+        sta test_case
 
 ;show test has ended, ask to repeat
 report_success
@@ -117,7 +156,8 @@ rget                ;get character in A
 ;        and #8
 ;        beq rget1
 ;not a real ACIA - so RDRF is not checked
-        lda $bff0   ;read acia rx reg
+;        lda $bff0   ;read acia rx reg
+        lda $f004   ;Kowalski simulator default
 ;the load can be replaced by a call to a kernal routine
 ;        jsr $ffcf   ;example: CHRIN for a C64
         cmp #'a'    ;lower case
@@ -159,7 +199,8 @@ rchar               ;report character in A
 ;        beq rchar1
 ;        pla
 ;not a real ACIA - so TDRF is not checked
-        sta $bff0   ;write acia tx reg
+;        sta $bff0   ;write acia tx reg
+        sta $f001   ;Kowalski simulator default
 ;the store can be replaced by a call to a kernal routine
 ;        jsr $ffd2   ;example: CHROUT for a C64
         rts
@@ -169,7 +210,7 @@ rmsg_start
 rmsg_stack
         db  10,13,"regs Y  X  A  PS PCLPCH",10,13,0
 rmsg_cont
-        db  10,13,"press C to continue",10,13,0
+        db  10,13,"press C to continue or S to skip current test",10,13,0
 rmsg_success
         db  10,13,"All tests completed, press R to repeat",10,13,0
     if rep_int = 1
