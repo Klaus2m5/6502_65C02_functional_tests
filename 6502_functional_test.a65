@@ -20,12 +20,12 @@
 ; This program is designed to test all opcodes of a 6502 emulator using all
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
-; 
+;
 ; version 05-jan-2020
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with AS65 written by Frank A. Kingswood
-; The assembler as65_142.zip can be obtained from my GitHub repository 
+; The assembler as65_142.zip can be obtained from my GitHub repository
 ; command line switches: -l -m -s2 -w -h0
 ;                         |  |  |   |  no page headers in listing
 ;                         |  |  |   wide listing (133 char/col)
@@ -100,17 +100,17 @@ I_flag = 3
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $52 (82) consecutive Bytes required
 ;                                add 2 if I_flag = 2
-zero_page = $a  
+zero_page = $a
 
 ;data_segment memory start address, $7B (123) consecutive Bytes required
-data_segment = $200  
+data_segment = $200
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
-    endif  
+    endif
 
 ;code_segment memory start address, 13.1kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
-code_segment = $400  
+code_segment = $400
 
 ;self modifying code may be disabled to allow running in ROM
 ;0=part of the code is self modifying and must reside in RAM
@@ -454,7 +454,7 @@ tst_stat    macro       ;testing flags in the processor status register
             trap_ne
             plp         ;restore status
             endm
-            
+
 tst_a       macro       ;testing result in accu & flags
             php         ;save flags
             cmp #\1     ;test result
@@ -507,7 +507,7 @@ tst_ay      macro       ;indexed testing result in accu & flags
             cmp \2,y    ;test flags
             trap_ne
             endm
-        
+
 tst_z       macro       ;indexed testing result in zp & flags
             php         ;save flags
             lda zpt
@@ -551,13 +551,13 @@ tst_absx    macro       ;testing result in abs,x & flags
             cmp \2,x    ;test flags
             trap_ne
             endm
-            
+
 ; RAM integrity test
 ;   verifies that none of the previous tests has altered RAM outside of the
 ;   designated write areas.
 ;   uses zpt word as indirect pointer, zpt+2 word as checksum
         if ram_top > -1
-check_ram   macro 
+check_ram   macro
             cld
             lda #0
             sta zpt         ;set low byte of indirect pointer
@@ -592,7 +592,7 @@ ccs4\?      iny
             lda zpt+3       ;checksum high is
             cmp ram_chksm+1 ;checksum high expected
             trap_ne         ;checksum mismatch
-            endm            
+            endm
         else
 check_ram   macro
             ;RAM check disabled - RAM size not set
@@ -620,7 +620,7 @@ irq_a   ds  1               ;a register
 irq_x   ds  1               ;x register
     if I_flag = 2
 ;masking for I bit in status
-flag_I_on   ds  1           ;or mask to load flags   
+flag_I_on   ds  1           ;or mask to load flags
 flag_I_off  ds  1           ;and mask to load flags
     endif
 zpt                         ;6 bytes store/modify test area
@@ -635,7 +635,7 @@ sb2     ds  1               ;operand 2 complemented for subtract
 zp_bss
 zps     db  $80,1           ;additional shift pattern to test zero result & flag
 zp1     db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
-zp7f    db  $7f             ;test pattern for compare  
+zp7f    db  $7f             ;test pattern for compare
 ;logical zeropage operands
 zpOR    db  0,$1f,$71,$80   ;test pattern for OR
 zpAN    db  $0f,$ff,$7f,$80 ;test pattern for AND
@@ -670,7 +670,7 @@ sbi2    dw  sba2            ;indirect pointer to complemented operand 2 (SBC)
 adiy2   dw  ada2-$ff        ;with offset for indirect indexed
 sbiy2   dw  sba2-$ff
 zp_bss_end
-   
+
         org data_segment
 test_case   ds  1           ;current test number
 ram_chksm   ds  2           ;checksum for RAM integrity test
@@ -712,8 +712,8 @@ rROR    db  $40,0,$61,$41,$20,0
 rRORc   db  $c0,$80,$e1,$c1,$a0,$80 ;expected result ROR +carry
 fASL                                ;expected flags for shifts
 fROL    db  fzc,0,fnc,fc,fn,fz      ;no carry in
-fROLc   db  fc,0,fnc,fc,fn,0        ;carry in 
-fLSR 
+fROLc   db  fc,0,fnc,fc,fn,0        ;carry in
+fLSR
 fROR    db  0,fzc,fc,0,fc,fz        ;no carry in
 fRORc   db  fn,fnc,fnc,fn,fnc,fn    ;carry in
 ;increments (decrements)
@@ -746,12 +746,12 @@ test_num = 0
     if I_flag = 1
         sei
     endif
-    
+
 ;initialize I/O for report channel
     if report = 1
         jsr report_init
     endif
-    
+
 ;pretest small branch offset
         ldx #5
         jmp psb_test
@@ -790,7 +790,7 @@ psb_test
         bne psb_back
         trap        ;branch should be taken
 psb_fwok
-        
+
 ;initialize BSS segment
     if load_data_direct != 1
         ldx #zp_end-zp_init-1
@@ -821,10 +821,10 @@ ld_vect lda vec_init,x
         eor #lo(~4)     ;reverse
         sta flag_I_off  ;and mask
     endif
-        
+
 ;generate checksum for RAM integrity test
     if ram_top > -1
-        lda #0 
+        lda #0
         sta zpt         ;set low byte of indirect pointer
         sta ram_chksm+1 ;checksum high byte
       if disable_selfmod = 0
@@ -853,7 +853,7 @@ gcs4    iny
         bne gcs5
         sta ram_chksm   ;checksum complete
     endif
-        next_test            
+        next_test
 
     if disable_selfmod = 0
 ;testing relative addressing with BEQ
@@ -880,7 +880,7 @@ range_fw
         sta range_adr   ;load into test target
         lda #0          ;should set zero flag in status register
         jmp range_op
-        
+
         dex             ; offset landing zone - backward branch too far
         dex
         dex
@@ -1162,7 +1162,7 @@ range_ok
         nop
         nop
         cpy #0
-        beq range_end   
+        beq range_end
         jmp range_loop
 range_end               ;range test successful
     endif
@@ -1171,38 +1171,38 @@ range_end               ;range test successful
 ;partial test BNE & CMP, CPX, CPY immediate
         cpy #1          ;testing BNE true
         bne test_bne
-        trap 
+        trap
 test_bne
-        lda #0 
-        cmp #0          ;test compare immediate 
+        lda #0
+        cmp #0          ;test compare immediate
         trap_ne
         trap_cc
         trap_mi
         cmp #1
-        trap_eq 
+        trap_eq
         trap_cs
         trap_pl
-        tax 
+        tax
         cpx #0          ;test compare x immediate
         trap_ne
         trap_cc
         trap_mi
         cpx #1
-        trap_eq 
+        trap_eq
         trap_cs
         trap_pl
-        tay 
+        tay
         cpy #0          ;test compare y immediate
         trap_ne
         trap_cc
         trap_mi
         cpy #1
-        trap_eq 
+        trap_eq
         trap_cs
         trap_pl
         next_test
 ;testing stack operations PHA PHP PLA PLP
-            
+
         ldx #$ff        ;initialize stack
         txs
         lda #$55
@@ -1235,15 +1235,15 @@ test_bne
         bcc nbr3
         bne nbr4
         bmi br1         ;branches should be taken
-        trap 
+        trap
 br1     bvs br2
-        trap 
+        trap
 br2     bcs br3
-        trap 
+        trap
 br3     beq br4
-        trap 
+        trap
 nbr1
-        trap            ;previous bpl taken 
+        trap            ;previous bpl taken
 nbr2
         trap            ;previous bvc taken
 nbr3
@@ -1266,21 +1266,21 @@ br4     php
         bcs nbr13
         beq nbr14
         bpl br11        ;branches should be taken
-        trap 
+        trap
 br11    bvc br12
-        trap 
+        trap
 br12    bcc br13
-        trap 
+        trap
 br13    bne br14
-        trap 
+        trap
 nbr11
-        trap            ;previous bmi taken 
+        trap            ;previous bmi taken
 nbr12
-        trap            ;previous bvs taken 
+        trap            ;previous bvs taken
 nbr13
-        trap            ;previous bcs taken 
+        trap            ;previous bcs taken
 nbr14
-        trap            ;previous beq taken 
+        trap            ;previous beq taken
 br14    php
         pla
         cmp_flag 0      ;flags off except break (pushed by sw) + reserved?
@@ -1477,7 +1477,7 @@ brvc8
         cpy #$aa
         trap_ne
         next_test
- 
+
 ; partial pretest EOR #
         set_a $3c,0
         eor #$c3
@@ -1508,7 +1508,7 @@ brvc8
         cpy #$bd
         trap_ne
         next_test
-        
+
 ; jump absolute
         set_stat $0
         lda #'F'
@@ -1520,7 +1520,7 @@ brvc8
         trap_ne         ;runover protection
         inx
         inx
-far_ret 
+far_ret
         trap_eq         ;returned flags OK?
         trap_pl
         trap_cc
@@ -1554,7 +1554,7 @@ test_near
         cpy #'R'
         trap_ne
         next_test
-        
+
 ; jump indirect
         set_stat 0
         lda #'I'
@@ -1565,7 +1565,7 @@ test_near
         trap_ne         ;runover protection
         dey
         dey
-ind_ret 
+ind_ret
         php             ;either SP or Y count will fail, if we do not hit
         dey
         dey
@@ -1698,7 +1698,7 @@ brk_ret1                ;address of break return
         cpx #$ff
         trap_ne
         next_test
- 
+
 ; test set and clear flags CLC CLI CLD CLV SEC SEI SED
         set_stat $ff
         clc
@@ -1722,24 +1722,24 @@ brk_ret1                ;address of break return
         sec
         tst_stat carry
         clc
-        tst_stat 0  
+        tst_stat 0
     if I_flag = 3
         sei
         tst_stat intdis
         cli
         tst_stat 0
-    endif  
+    endif
         sed
         tst_stat decmode
         cld
-        tst_stat 0  
+        tst_stat 0
         set_stat overfl
         tst_stat overfl
         clv
         tst_stat 0
         next_test
 ; testing index register increment/decrement and transfer
-; INX INY DEX DEY TAX TXA TAY TYA 
+; INX INY DEX DEY TAX TXA TAY TYA
         ldx #$fe
         set_stat $ff
         inx             ;ff
@@ -1789,7 +1789,7 @@ brk_ret1                ;address of break return
         tst_y 0,zero
         dey             ;ff
         tst_y $ff,minus
-                
+
         ldx #$ff
         set_stat $ff
         txa
@@ -1817,7 +1817,7 @@ brk_ret1                ;address of break return
         plp
         txa
         tst_a $ff,minus
-                        
+
         ldy #$ff
         set_stat $ff
         tya
@@ -1850,7 +1850,7 @@ brk_ret1                ;address of break return
         pha
         ldx #$ff        ;ff
         txa
-        plp             
+        plp
         tay
         tst_y $ff,$ff-zero
         php
@@ -1925,7 +1925,7 @@ brk_ret1                ;address of break return
         tax
         tst_x $ff,minus
         next_test
-     
+
 ;TSX sets NZ - TXS does not
 ;  This section also tests for proper stack wrap around.
         ldx #1          ;01
@@ -1966,7 +1966,7 @@ brk_ret1                ;address of break return
         php
         lda $1ff
         cmp_flag 0
-        
+
         ldx #1
         txs             ;sp=01
         set_stat $ff
@@ -1993,7 +1993,7 @@ brk_ret1                ;address of break return
         lda $1ff
         cmp_flag $ff-zero
         trap_ne
-        
+
         ldx #1
         txs             ;sp=01
         set_stat 0
@@ -2022,11 +2022,11 @@ brk_ret1                ;address of break return
         trap_ne
         pla             ;sp=ff
         next_test
-        
+
 ; testing index register load & store LDY LDX STY STX all addressing modes
 ; LDX / STX - zp,y / abs,y
         ldy #3
-tldx    
+tldx
         set_stat 0
         ldx zp1,y
         php         ;test stores do not alter flags
@@ -2043,10 +2043,10 @@ tldx
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tldx                  
+        bpl tldx
 
         ldy #3
-tldx1   
+tldx1
         set_stat $ff
         ldx zp1,y
         php         ;test stores do not alter flags
@@ -2063,10 +2063,10 @@ tldx1
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tldx1                  
+        bpl tldx1
 
         ldy #3
-tldx2   
+tldx2
         set_stat 0
         ldx abs1,y
         php         ;test stores do not alter flags
@@ -2084,10 +2084,10 @@ tldx2
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tldx2                  
+        bpl tldx2
 
         ldy #3
-tldx3   
+tldx3
         set_stat $ff
         ldx abs1,y
         php         ;test stores do not alter flags
@@ -2106,24 +2106,24 @@ tldx3
         trap_ne
         dey
         bpl tldx3
-        
+
         ldy #3      ;testing store result
         ldx #0
 tstx    lda zpt,y
         eor #$c3
         cmp zp1,y
         trap_ne     ;store to zp data
-        stx zpt,y   ;clear                
+        stx zpt,y   ;clear
         lda abst,y
         eor #$c3
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstx
         next_test
-        
+
 ; indexed wraparound test (only zp should wrap)
         ldy #3+$fa
 tldx4   ldx zp1-$fa&$ff,y   ;wrap on indexed zp
@@ -2131,31 +2131,31 @@ tldx4   ldx zp1-$fa&$ff,y   ;wrap on indexed zp
         sta abst-$fa,y      ;no STX abs,y!
         dey
         cpy #$fa
-        bcs tldx4                  
+        bcs tldx4
         ldy #3+$fa
 tldx5   ldx abs1-$fa,y      ;no wrap on indexed abs
         stx zpt-$fa&$ff,y
         dey
         cpy #$fa
-        bcs tldx5                  
+        bcs tldx5
         ldy #3      ;testing wraparound result
         ldx #0
 tstx1   lda zpt,y
         cmp zp1,y
         trap_ne     ;store to zp data
-        stx zpt,y   ;clear                
+        stx zpt,y   ;clear
         lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstx1
         next_test
-        
+
 ; LDY / STY - zp,x / abs,x
         ldx #3
-tldy    
+tldy
         set_stat 0
         ldy zp1,x
         php         ;test stores do not alter flags
@@ -2172,10 +2172,10 @@ tldy
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldy                  
+        bpl tldy
 
         ldx #3
-tldy1   
+tldy1
         set_stat $ff
         ldy zp1,x
         php         ;test stores do not alter flags
@@ -2192,10 +2192,10 @@ tldy1
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldy1                  
+        bpl tldy1
 
         ldx #3
-tldy2   
+tldy2
         set_stat 0
         ldy abs1,x
         php         ;test stores do not alter flags
@@ -2213,7 +2213,7 @@ tldy2
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldy2                  
+        bpl tldy2
 
         ldx #3
 tldy3
@@ -2242,13 +2242,13 @@ tsty    lda zpt,x
         eor #$c3
         cmp zp1,x
         trap_ne     ;store to zp,x data
-        sty zpt,x   ;clear                
+        sty zpt,x   ;clear
         lda abst,x
         eor #$c3
         cmp abs1,x
         trap_ne     ;store to abs,x data
         txa
-        sta abst,x  ;clear                
+        sta abst,x  ;clear
         dex
         bpl tsty
         next_test
@@ -2260,30 +2260,30 @@ tldy4   ldy zp1-$fa&$ff,x   ;wrap on indexed zp
         sta abst-$fa,x      ;no STX abs,x!
         dex
         cpx #$fa
-        bcs tldy4                  
+        bcs tldy4
         ldx #3+$fa
 tldy5   ldy abs1-$fa,x      ;no wrap on indexed abs
         sty zpt-$fa&$ff,x
         dex
         cpx #$fa
-        bcs tldy5                  
+        bcs tldy5
         ldx #3      ;testing wraparound result
         ldy #0
 tsty1   lda zpt,x
         cmp zp1,x
         trap_ne     ;store to zp,x data
-        sty zpt,x   ;clear                
+        sty zpt,x   ;clear
         lda abst,x
         cmp abs1,x
         trap_ne     ;store to abs,x data
         txa
-        sta abst,x  ;clear                
+        sta abst,x  ;clear
         dex
         bpl tsty1
         next_test
 
 ; LDX / STX - zp / abs / #
-        set_stat 0  
+        set_stat 0
         ldx zp1
         php         ;test stores do not alter flags
         txa
@@ -2353,13 +2353,13 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldx zp1  
+        ldx zp1
         php         ;test stores do not alter flags
         txa
         eor #$c3
         tax
         plp
-        stx abst  
+        stx abst
         php         ;flags after load/store sequence
         eor #$c3
         tax
@@ -2422,13 +2422,13 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat 0
-        ldx abs1  
+        ldx abs1
         php         ;test stores do not alter flags
         txa
         eor #$c3
         tax
         plp
-        stx zpt  
+        stx zpt
         php         ;flags after load/store sequence
         eor #$c3
         cmp zp1     ;test result
@@ -2487,13 +2487,13 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldx abs1  
+        ldx abs1
         php         ;test stores do not alter flags
         txa
         eor #$c3
         tax
         plp
-        stx zpt  
+        stx zpt
         php         ;flags after load/store sequence
         eor #$c3
         tax
@@ -2555,7 +2555,7 @@ tsty1   lda zpt,x
         cmp fLDx+3  ;test flags
         trap_ne
 
-        set_stat 0  
+        set_stat 0
         ldx #$c3
         php
         cpx abs1    ;test result
@@ -2593,7 +2593,7 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldx #$c3  
+        ldx #$c3
         php
         cpx abs1    ;test result
         trap_ne
@@ -2630,57 +2630,57 @@ tsty1   lda zpt,x
         trap_ne
 
         ldx #0
-        lda zpt  
+        lda zpt
         eor #$c3
-        cmp zp1  
+        cmp zp1
         trap_ne     ;store to zp data
-        stx zpt     ;clear                
-        lda abst  
+        stx zpt     ;clear
+        lda abst
         eor #$c3
-        cmp abs1  
+        cmp abs1
         trap_ne     ;store to abs data
-        stx abst    ;clear                
+        stx abst    ;clear
         lda zpt+1
         eor #$c3
         cmp zp1+1
         trap_ne     ;store to zp data
-        stx zpt+1   ;clear                
+        stx zpt+1   ;clear
         lda abst+1
         eor #$c3
         cmp abs1+1
         trap_ne     ;store to abs data
-        stx abst+1  ;clear                
+        stx abst+1  ;clear
         lda zpt+2
         eor #$c3
         cmp zp1+2
         trap_ne     ;store to zp data
-        stx zpt+2   ;clear                
+        stx zpt+2   ;clear
         lda abst+2
         eor #$c3
         cmp abs1+2
         trap_ne     ;store to abs data
-        stx abst+2  ;clear                
+        stx abst+2  ;clear
         lda zpt+3
         eor #$c3
         cmp zp1+3
         trap_ne     ;store to zp data
-        stx zpt+3   ;clear                
+        stx zpt+3   ;clear
         lda abst+3
         eor #$c3
         cmp abs1+3
         trap_ne     ;store to abs data
-        stx abst+3  ;clear                
+        stx abst+3  ;clear
         next_test
 
 ; LDY / STY - zp / abs / #
         set_stat 0
-        ldy zp1  
+        ldy zp1
         php         ;test stores do not alter flags
         tya
         eor #$c3
         tay
         plp
-        sty abst  
+        sty abst
         php         ;flags after load/store sequence
         eor #$c3
         tay
@@ -2743,13 +2743,13 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldy zp1  
+        ldy zp1
         php         ;test stores do not alter flags
         tya
         eor #$c3
         tay
         plp
-        sty abst  
+        sty abst
         php         ;flags after load/store sequence
         eor #$c3
         tay
@@ -2810,15 +2810,15 @@ tsty1   lda zpt,x
         eor_flag lo~fnz ;mask bits not altered
         cmp fLDx+3  ;test flags
         trap_ne
-        
+
         set_stat 0
-        ldy abs1  
+        ldy abs1
         php         ;test stores do not alter flags
         tya
         eor #$c3
         tay
         plp
-        sty zpt  
+        sty zpt
         php         ;flags after load/store sequence
         eor #$c3
         tay
@@ -2881,13 +2881,13 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldy abs1  
+        ldy abs1
         php         ;test stores do not alter flags
         tya
         eor #$c3
         tay
         plp
-        sty zpt  
+        sty zpt
         php         ;flags after load/store sequence
         eor #$c3
         tay
@@ -2951,7 +2951,7 @@ tsty1   lda zpt,x
 
 
         set_stat 0
-        ldy #$c3  
+        ldy #$c3
         php
         cpy abs1    ;test result
         trap_ne
@@ -2988,7 +2988,7 @@ tsty1   lda zpt,x
         trap_ne
 
         set_stat $ff
-        ldy #$c3  
+        ldy #$c3
         php
         cpy abs1    ;test result
         trap_ne
@@ -3023,54 +3023,54 @@ tsty1   lda zpt,x
         eor_flag lo~fnz ;mask bits not altered
         cmp fLDx+3  ;test flags
         trap_ne
-        
+
         ldy #0
-        lda zpt  
+        lda zpt
         eor #$c3
-        cmp zp1  
+        cmp zp1
         trap_ne     ;store to zp   data
-        sty zpt     ;clear                
-        lda abst  
+        sty zpt     ;clear
+        lda abst
         eor #$c3
-        cmp abs1  
+        cmp abs1
         trap_ne     ;store to abs   data
-        sty abst    ;clear                
+        sty abst    ;clear
         lda zpt+1
         eor #$c3
         cmp zp1+1
         trap_ne     ;store to zp+1 data
-        sty zpt+1   ;clear                
+        sty zpt+1   ;clear
         lda abst+1
         eor #$c3
         cmp abs1+1
         trap_ne     ;store to abs+1 data
-        sty abst+1  ;clear                
+        sty abst+1  ;clear
         lda zpt+2
         eor #$c3
         cmp zp1+2
         trap_ne     ;store to zp+2 data
-        sty zpt+2   ;clear                
+        sty zpt+2   ;clear
         lda abst+2
         eor #$c3
         cmp abs1+2
         trap_ne     ;store to abs+2 data
-        sty abst+2  ;clear                
+        sty abst+2  ;clear
         lda zpt+3
         eor #$c3
         cmp zp1+3
         trap_ne     ;store to zp+3 data
-        sty zpt+3   ;clear                
+        sty zpt+3   ;clear
         lda abst+3
         eor #$c3
         cmp abs1+3
         trap_ne     ;store to abs+3 data
-        sty abst+3  ;clear                
+        sty abst+3  ;clear
         next_test
 
 ; testing load / store accumulator LDA / STA all addressing modes
 ; LDA / STA - zp,x / abs,x
         ldx #3
-tldax    
+tldax
         set_stat 0
         lda zp1,x
         php         ;test stores do not alter flags
@@ -3086,10 +3086,10 @@ tldax
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldax                  
+        bpl tldax
 
         ldx #3
-tldax1   
+tldax1
         set_stat $ff
         lda zp1,x
         php         ;test stores do not alter flags
@@ -3105,10 +3105,10 @@ tldax1
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldax1                  
+        bpl tldax1
 
         ldx #3
-tldax2   
+tldax2
         set_stat 0
         lda abs1,x
         php         ;test stores do not alter flags
@@ -3124,7 +3124,7 @@ tldax2
         cmp fLDx,x  ;test flags
         trap_ne
         dex
-        bpl tldax2                  
+        bpl tldax2
 
         ldx #3
 tldax3
@@ -3151,20 +3151,20 @@ tstax   lda zpt,x
         eor #$c3
         cmp zp1,x
         trap_ne     ;store to zp,x data
-        sty zpt,x   ;clear                
+        sty zpt,x   ;clear
         lda abst,x
         eor #$c3
         cmp abs1,x
         trap_ne     ;store to abs,x data
         txa
-        sta abst,x  ;clear                
+        sta abst,x  ;clear
         dex
         bpl tstax
         next_test
 
 ; LDA / STA - (zp),y / abs,y / (zp,x)
         ldy #3
-tlday    
+tlday
         set_stat 0
         lda (ind1),y
         php         ;test stores do not alter flags
@@ -3180,10 +3180,10 @@ tlday
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tlday                  
+        bpl tlday
 
         ldy #3
-tlday1   
+tlday1
         set_stat $ff
         lda (ind1),y
         php         ;test stores do not alter flags
@@ -3199,7 +3199,7 @@ tlday1
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tlday1                  
+        bpl tlday1
 
         ldy #3      ;testing store result
         ldx #0
@@ -3208,12 +3208,12 @@ tstay   lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay
 
         ldy #3
-tlday2   
+tlday2
         set_stat 0
         lda abs1,y
         php         ;test stores do not alter flags
@@ -3229,10 +3229,10 @@ tlday2
         cmp fLDx,y  ;test flags
         trap_ne
         dey
-        bpl tlday2                  
+        bpl tlday2
 
         ldy #3
-tlday3   
+tlday3
         set_stat $ff
         lda abs1,y
         php         ;test stores do not alter flags
@@ -3249,7 +3249,7 @@ tlday3
         trap_ne
         dey
         bpl tlday3
-        
+
         ldy #3      ;testing store result
         ldx #0
 tstay1  lda abst,y
@@ -3257,13 +3257,13 @@ tstay1  lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay1
-        
+
         ldx #6
         ldy #3
-tldax4   
+tldax4
         set_stat 0
         lda (ind1,x)
         php         ;test stores do not alter flags
@@ -3281,7 +3281,7 @@ tldax4
         dex
         dex
         dey
-        bpl tldax4                  
+        bpl tldax4
 
         ldx #6
         ldy #3
@@ -3312,7 +3312,7 @@ tstay2  lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay2
         next_test
@@ -3323,25 +3323,25 @@ tldax6  lda zp1-$fa&$ff,x   ;wrap on indexed zp
         sta abst-$fa,x      ;no STX abs,x!
         dex
         cpx #$fa
-        bcs tldax6                  
+        bcs tldax6
         ldx #3+$fa
 tldax7  lda abs1-$fa,x      ;no wrap on indexed abs
         sta zpt-$fa&$ff,x
         dex
         cpx #$fa
         bcs tldax7
-                          
+
         ldx #3      ;testing wraparound result
         ldy #0
 tstax1  lda zpt,x
         cmp zp1,x
         trap_ne     ;store to zp,x data
-        sty zpt,x   ;clear                
+        sty zpt,x   ;clear
         lda abst,x
         cmp abs1,x
         trap_ne     ;store to abs,x data
         txa
-        sta abst,x  ;clear                
+        sta abst,x  ;clear
         dex
         bpl tstax1
 
@@ -3360,29 +3360,29 @@ tstay4  lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay4
-        
+
         ldy #3+$f8
 tlday5  lda abs1-$f8,y  ;no wrap on indexed abs
         sta (inwt),y
         dey
         cpy #$f8
-        bcs tlday5                  
+        bcs tlday5
         ldy #3      ;testing wraparound result
         ldx #0
 tstay5  lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay5
 
         ldy #3+$f8
         ldx #6+$f8
-tlday6  lda (inw1),y    ;no wrap on zp indirect indexed 
+tlday6  lda (inw1),y    ;no wrap on zp indirect indexed
         sta (indt-$f8&$ff,x)
         dex
         dex
@@ -3395,13 +3395,13 @@ tstay6  lda abst,y
         cmp abs1,y
         trap_ne     ;store to abs data
         txa
-        sta abst,y  ;clear                
+        sta abst,y  ;clear
         dey
         bpl tstay6
         next_test
 
 ; LDA / STA - zp / abs / #
-        set_stat 0  
+        set_stat 0
         lda zp1
         php         ;test stores do not alter flags
         eor #$c3
@@ -3458,11 +3458,11 @@ tstay6  lda abst,y
         cmp fLDx+3  ;test flags
         trap_ne
         set_stat $ff
-        lda zp1  
+        lda zp1
         php         ;test stores do not alter flags
         eor #$c3
         plp
-        sta abst  
+        sta abst
         php         ;flags after load/store sequence
         eor #$c3
         cmp #$c3    ;test result
@@ -3514,11 +3514,11 @@ tstay6  lda abst,y
         cmp fLDx+3  ;test flags
         trap_ne
         set_stat 0
-        lda abs1  
+        lda abs1
         php         ;test stores do not alter flags
         eor #$c3
         plp
-        sta zpt  
+        sta zpt
         php         ;flags after load/store sequence
         eor #$c3
         cmp zp1     ;test result
@@ -3570,11 +3570,11 @@ tstay6  lda abst,y
         cmp fLDx+3  ;test flags
         trap_ne
         set_stat $ff
-        lda abs1  
+        lda abs1
         php         ;test stores do not alter flags
         eor #$c3
         plp
-        sta zpt  
+        sta zpt
         php         ;flags after load/store sequence
         eor #$c3
         cmp zp1     ;test result
@@ -3625,7 +3625,7 @@ tstay6  lda abst,y
         eor_flag lo~fnz ;mask bits not altered
         cmp fLDx+3  ;test flags
         trap_ne
-        set_stat 0  
+        set_stat 0
         lda #$c3
         php
         cmp abs1    ;test result
@@ -3663,7 +3663,7 @@ tstay6  lda abst,y
         trap_ne
 
         set_stat $ff
-        lda #$c3  
+        lda #$c3
         php
         cmp abs1    ;test result
         trap_ne
@@ -3700,53 +3700,53 @@ tstay6  lda abst,y
         trap_ne
 
         ldx #0
-        lda zpt  
+        lda zpt
         eor #$c3
-        cmp zp1  
+        cmp zp1
         trap_ne     ;store to zp data
-        stx zpt     ;clear                
-        lda abst  
+        stx zpt     ;clear
+        lda abst
         eor #$c3
-        cmp abs1  
+        cmp abs1
         trap_ne     ;store to abs data
-        stx abst    ;clear                
+        stx abst    ;clear
         lda zpt+1
         eor #$c3
         cmp zp1+1
         trap_ne     ;store to zp data
-        stx zpt+1   ;clear                
+        stx zpt+1   ;clear
         lda abst+1
         eor #$c3
         cmp abs1+1
         trap_ne     ;store to abs data
-        stx abst+1  ;clear                
+        stx abst+1  ;clear
         lda zpt+2
         eor #$c3
         cmp zp1+2
         trap_ne     ;store to zp data
-        stx zpt+2   ;clear                
+        stx zpt+2   ;clear
         lda abst+2
         eor #$c3
         cmp abs1+2
         trap_ne     ;store to abs data
-        stx abst+2  ;clear                
+        stx abst+2  ;clear
         lda zpt+3
         eor #$c3
         cmp zp1+3
         trap_ne     ;store to zp data
-        stx zpt+3   ;clear                
+        stx zpt+3   ;clear
         lda abst+3
         eor #$c3
         cmp abs1+3
         trap_ne     ;store to abs data
-        stx abst+3  ;clear                
+        stx abst+3  ;clear
         next_test
 
 ; testing bit test & compares BIT CPX CPY CMP all addressing modes
 ; BIT - zp / abs
         set_a $ff,0
         bit zp1+3   ;00 - should set Z / clear  NV
-        tst_a $ff,fz 
+        tst_a $ff,fz
         set_a 1,0
         bit zp1+2   ;41 - should set V (M6) / clear NZ
         tst_a 1,fv
@@ -3756,10 +3756,10 @@ tstay6  lda abst,y
         set_a 1,0
         bit zp1     ;c3 - should set N (M7) & V (M6) / clear Z
         tst_a 1,fnv
-        
+
         set_a $ff,$ff
         bit zp1+3   ;00 - should set Z / clear  NV
-        tst_a $ff,~fnv 
+        tst_a $ff,~fnv
         set_a 1,$ff
         bit zp1+2   ;41 - should set V (M6) / clear NZ
         tst_a 1,~fnz
@@ -3769,10 +3769,10 @@ tstay6  lda abst,y
         set_a 1,$ff
         bit zp1     ;c3 - should set N (M7) & V (M6) / clear Z
         tst_a 1,~fz
-        
+
         set_a $ff,0
         bit abs1+3  ;00 - should set Z / clear  NV
-        tst_a $ff,fz 
+        tst_a $ff,fz
         set_a 1,0
         bit abs1+2  ;41 - should set V (M6) / clear NZ
         tst_a 1,fv
@@ -3782,10 +3782,10 @@ tstay6  lda abst,y
         set_a 1,0
         bit abs1    ;c3 - should set N (M7) & V (M6) / clear Z
         tst_a 1,fnv
-        
+
         set_a $ff,$ff
         bit abs1+3  ;00 - should set Z / clear  NV
-        tst_a $ff,~fnv 
+        tst_a $ff,~fnv
         set_a 1,$ff
         bit abs1+2  ;41 - should set V (M6) / clear NZ
         tst_a 1,~fnz
@@ -3796,8 +3796,8 @@ tstay6  lda abst,y
         bit abs1    ;c3 - should set N (M7) & V (M6) / clear Z
         tst_a 1,~fz
         next_test
-        
-; CPX - zp / abs / #         
+
+; CPX - zp / abs / #
         set_x $80,0
         cpx zp7f
         tst_stat fc
@@ -3856,7 +3856,7 @@ tstay6  lda abst,y
         tst_x $7e,~fzc
         next_test
 
-; CPY - zp / abs / #         
+; CPY - zp / abs / #
         set_y $80,0
         cpy zp7f
         tst_stat fc
@@ -3915,7 +3915,7 @@ tstay6  lda abst,y
         tst_y $7e,~fzc
         next_test
 
-; CMP - zp / abs / #         
+; CMP - zp / abs / #
         set_a $80,0
         cmp zp7f
         tst_a $80,fc
@@ -4440,7 +4440,7 @@ trorc7
         dex
         bpl trorc7
         next_test
-        
+
 ; shifts - abs indexed
         ldx #5
 tasl8
@@ -4538,7 +4538,7 @@ trorc9
         ldx #0
         lda #$7e
         sta zpt
-tinc    
+tinc
         set_stat 0
         inc zpt
         tst_z rINC,fINC,0
@@ -4551,7 +4551,7 @@ tinc1   cpx #5
         bne tinc
         dex
         inc zpt
-tdec    
+tdec
         set_stat 0
         dec zpt
         tst_z rINC,fINC,0
@@ -4566,7 +4566,7 @@ tdec1
         ldx #0
         lda #$7e
         sta zpt
-tinc10    
+tinc10
         set_stat $ff
         inc zpt
         tst_z rINC,fINC,$ff-fnz
@@ -4579,7 +4579,7 @@ tinc11  cpx #5
         bne tinc10
         dex
         inc zpt
-tdec10    
+tdec10
         set_stat $ff
         dec zpt
         tst_z rINC,fINC,$ff-fnz
@@ -4597,7 +4597,7 @@ tdec11
         ldx #0
         lda #$7e
         sta abst
-tinc2    
+tinc2
         set_stat 0
         inc abst
         tst_abs rINC,fINC,0
@@ -4610,7 +4610,7 @@ tinc3   cpx #5
         bne tinc2
         dex
         inc abst
-tdec2    
+tdec2
         set_stat 0
         dec abst
         tst_abs rINC,fINC,0
@@ -4625,7 +4625,7 @@ tdec3
         ldx #0
         lda #$7e
         sta abst
-tinc12    
+tinc12
         set_stat $ff
         inc abst
         tst_abs rINC,fINC,$ff-fnz
@@ -4638,7 +4638,7 @@ tinc13   cpx #5
         bne tinc12
         dex
         inc abst
-tdec12    
+tdec12
         set_stat $ff
         dec abst
         tst_abs rINC,fINC,$ff-fnz
@@ -4668,7 +4668,7 @@ tinc5   cpx #5
         bne tinc4
         dex
         lda #2
-tdec4   sta zpt,x 
+tdec4   sta zpt,x
         set_stat 0
         dec zpt,x
         tst_zx rINC,fINC,0
@@ -4695,7 +4695,7 @@ tinc15  cpx #5
         bne tinc14
         dex
         lda #2
-tdec14  sta zpt,x 
+tdec14  sta zpt,x
         set_stat $ff
         dec zpt,x
         tst_zx rINC,fINC,$ff-fnz
@@ -4725,7 +4725,7 @@ tinc7   cpx #5
         bne tinc6
         dex
         lda #2
-tdec6   sta abst,x 
+tdec6   sta abst,x
         set_stat 0
         dec abst,x
         tst_absx rINC,fINC,0
@@ -4752,7 +4752,7 @@ tinc17  cpx #5
         bne tinc16
         dex
         lda #2
-tdec16  sta abst,x 
+tdec16  sta abst,x
         set_stat $ff
         dec abst,x
         tst_absx rINC,fINC,$ff-fnz
@@ -4784,7 +4784,7 @@ tand1   lda zpAN,x
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tand1
-    
+
         ldx #3      ;zp
 tand2   lda zpAN,x
         sta zpt
@@ -4918,7 +4918,7 @@ teor1   lda zpEO,x
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl teor1
-    
+
         ldx #3      ;zp
 teor2    lda zpEO,x
         sta zpt
@@ -4951,7 +4951,7 @@ teor5   lda zpEO,x
         eor abst
         tst_ax  absrlo,absflo,$ff-fnz
         dex
-        bpl teor6
+        bpl teor5
 
         ldx #3      ;zp,x
 teor6
@@ -5052,7 +5052,7 @@ tora1   lda zpOR,x
         tst_ax  absrlo,absflo,$ff-fnz
         dex
         bpl tora1
-    
+
         ldx #3      ;zp
 tora2   lda zpOR,x
         sta zpt
@@ -5169,7 +5169,7 @@ tora15
         bpl tora15
     if I_flag = 3
         cli
-    endif                
+    endif
         next_test
 
 ; full binary add/subtract test
@@ -5218,7 +5218,7 @@ tadd1   ora adrh        ;merge C to expected flags
         sta adrf        ;no need to check carry as we are adding to 0
         dec sb2         ;complement subtract operand 2
         dec sba2
-        lda ad2         
+        lda ad2
         sta adrl
         bne tadd        ;iterate op2
     if disable_decimal < 1
@@ -5229,7 +5229,7 @@ tadd1   ora adrh        ;merge C to expected flags
 ;   only valid BCD operands are tested, N V Z flags are ignored
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
-        sed 
+        sed
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
         lda #$99        ;start with adding 99 to 99 with carry
@@ -5355,19 +5355,19 @@ dec_rti_ret
         cmp #$10
         trap_ne         ;expected decimal result after rti D=1
         rti
-bin_rti_ret        
+bin_rti_ret
         lda #$55
         adc #$55
         cmp #$aa
         trap_ne         ;expected binary result after rti D=0
     endif
-    
+
         lda test_case
         cmp #test_num
         trap_ne         ;previous test is out of sequence
         lda #$f0        ;mark opcode testing complete
         sta test_case
-        
+
 ; final RAM integrity test
 ;   verifies that none of the previous tests has altered RAM outside of the
 ;   designated write areas.
@@ -5380,11 +5380,11 @@ bin_rti_ret
 
 
 ; S U C C E S S ************************************************
-; -------------       
+; -------------
         success         ;if you get here everything went well
-; -------------       
+; -------------
 ; S U C C E S S ************************************************
-        jmp start       ;run again      
+        jmp start       ;run again
 
     if disable_decimal < 1
 ; core subroutine of the decimal add/subtract test
@@ -5397,7 +5397,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc ad2         ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5408,7 +5408,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc sb2         ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5420,7 +5420,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc ada2        ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5431,7 +5431,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc sba2        ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5445,7 +5445,7 @@ chkdad
         sta ex_adci+1   ;set ADC # operand
         lda ad1
         jsr ex_adci     ;execute ADC # in RAM
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5458,7 +5458,7 @@ chkdad
         sta ex_sbci+1   ;set SBC # operand
         lda ad1
         jsr ex_sbci     ;execute SBC # in RAM
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5470,7 +5470,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc 0,x         ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5481,7 +5481,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc sb2-ad2,x   ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5493,7 +5493,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc ada2-ad2,x  ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5504,7 +5504,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc sba2-ad2,x  ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5516,7 +5516,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc ada2-$ff,y  ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5527,7 +5527,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc sba2-$ff,y  ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5539,7 +5539,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc (lo adi2-ad2,x) ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5550,7 +5550,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc (lo sbi2-ad2,x) ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5562,7 +5562,7 @@ chkdad
         php             ;save carry for subtract
         lda ad1
         adc (adiy2),y   ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5573,7 +5573,7 @@ chkdad
         php             ;save carry for next add
         lda ad1
         sbc (sbiy2),y   ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5605,7 +5605,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc ad2         ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5616,7 +5616,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc sb2         ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5628,7 +5628,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc ada2        ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5639,7 +5639,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc sba2        ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5653,7 +5653,7 @@ ckad1   pla
         sta ex_adci+1   ;set ADC # operand
         lda ad1
         jsr ex_adci     ;execute ADC # in RAM
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5666,7 +5666,7 @@ ckad1   pla
         sta ex_sbci+1   ;set SBC # operand
         lda ad1
         jsr ex_sbci     ;execute SBC # in RAM
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5678,7 +5678,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc 0,x         ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5689,7 +5689,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc sb2-ad2,x   ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5701,7 +5701,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc ada2-ad2,x  ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5712,7 +5712,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc sba2-ad2,x  ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5724,7 +5724,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc ada2-$ff,y  ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5735,7 +5735,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc sba2-$ff,y  ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5747,7 +5747,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc (lo adi2-ad2,x) ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5758,7 +5758,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc (lo sbi2-ad2,x) ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5770,7 +5770,7 @@ ckad1   pla
         php             ;save carry for subtract
         lda ad1
         adc (adiy2),y   ;perform add
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5781,7 +5781,7 @@ ckad1   pla
         php             ;save carry for next add
         lda ad1
         sbc (sbiy2),y   ;perform subtract
-        php          
+        php
         cmp adrl        ;check result
         trap_ne         ;bad result
         pla             ;check flags
@@ -5803,11 +5803,11 @@ test_far
         trap_cs         ;flags loaded?
         trap_vs
         trap_mi
-        trap_eq 
+        trap_eq
         cmp #'F'        ;registers loaded?
         trap_ne
         cpx #'A'
-        trap_ne        
+        trap_ne
         cpy #('R'-3)
         trap_ne
         pha             ;save a,x
@@ -5823,7 +5823,7 @@ test_far
         inx             ;return registers with modifications
         eor #$aa        ;N=1, V=1, Z=0, C=1
         jmp far_ret
-        
+
 ; target for the jump indirect test
         align
 ptr_tst_ind dw test_ind
@@ -5840,11 +5840,11 @@ test_ind
         trap_cs         ;flags loaded?
         trap_vs
         trap_mi
-        trap_eq 
+        trap_eq
         cmp #'I'        ;registers loaded?
         trap_ne
         cpx #'N'
-        trap_ne        
+        trap_ne
         cpy #('D'-3)
         trap_ne
         pha             ;save a,x
@@ -5875,16 +5875,16 @@ test_jsr
         trap_cs         ;flags loaded?
         trap_vs
         trap_mi
-        trap_eq 
+        trap_eq
         cmp #'J'        ;registers loaded?
         trap_ne
         cpx #'S'
-        trap_ne        
+        trap_ne
         cpy #('R'-3)
         trap_ne
         pha             ;save a,x
         txa
-        pha       
+        pha
         tsx             ;sp -4? (return addr,a,x)
         cpx #$fb
         trap_ne
@@ -5903,7 +5903,7 @@ test_jsr
         rts
         trap            ;runover protection
         jmp start       ;catastrophic error - cannot continue
-        
+
 ;trap in case of unexpected IRQ, NMI, BRK, RESET - BRK test target
 nmi_trap
         trap            ;check stack for conditions at NMI
@@ -5911,7 +5911,7 @@ nmi_trap
 res_trap
         trap            ;unexpected RESET
         jmp start       ;catastrophic error - cannot continue
-        
+
         dey
         dey
 irq_trap                ;BRK test or unextpected BRK or IRQ
@@ -5927,7 +5927,7 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         cmp #'B'        ;BRK pass 1 registers loaded?
         trap_ne
         cpx #'R'
-        trap_ne        
+        trap_ne
         cpy #'K'-3
         trap_ne
         sta irq_a       ;save registers during break test
@@ -5958,10 +5958,10 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         rti
         trap            ;runover protection
         jmp start       ;catastrophic error - cannot continue
-        
-break2                  ;BRK pass 2        
+
+break2                  ;BRK pass 2
         cpx #$ff-'R'
-        trap_ne        
+        trap_ne
         cpy #$ff-'K'-3
         trap_ne
         sta irq_a       ;save registers during break test
@@ -5984,7 +5984,7 @@ break2                  ;BRK pass 2
         cmp #lo(brk_ret1)
         trap_ne
         load_flag intdis
-        pha      
+        pha
         ldx irq_x
         inx             ;return registers with modifications
         lda irq_a
@@ -5997,7 +5997,7 @@ break2                  ;BRK pass 2
     if report = 1
         include "report.i65"
     endif
-        
+
 ;copy of data to initialize BSS segment
     if load_data_direct != 1
 zp_init
@@ -6038,10 +6038,10 @@ sbi2_   dw  sba2            ;indirect pointer to complemented operand 2 (SBC)
 adiy2_  dw  ada2-$ff        ;with offset for indirect indexed
 sbiy2_  dw  sba2-$ff
 zp_end
-    if (zp_end - zp_init) != (zp_bss_end - zp_bss)   
-        ;force assembler error if size is different   
+    if (zp_end - zp_init) != (zp_bss_end - zp_bss)
+        ;force assembler error if size is different
         ERROR ERROR ERROR   ;mismatch between bss and zeropage data
-    endif 
+    endif
 data_init
 ex_and_ and #0              ;execute immediate opcodes
         rts
@@ -6067,7 +6067,7 @@ rROR_   db  $40,0,$61,$41,$20,0
 rRORc_  db  $c0,$80,$e1,$c1,$a0,$80 ;expected result ROR +carry
 fASL_                               ;expected flags for shifts
 fROL_   db  fzc,0,fnc,fc,fn,fz      ;no carry in
-fROLc_  db  fc,0,fnc,fc,fn,0        ;carry in 
+fROLc_  db  fc,0,fnc,fc,fn,0        ;carry in
 fLSR_
 fROR_   db  0,fzc,fc,0,fc,fz        ;no carry in
 fRORc_  db  fn,fnc,fnc,fn,fnc,fn    ;carry in
@@ -6087,9 +6087,9 @@ absrlo_ db  0,$ff,$7f,$80
 absflo_ db  fz,fn,0,fn
 data_end
     if (data_end - data_init) != (data_bss_end - data_bss)
-        ;force assembler error if size is different   
+        ;force assembler error if size is different
         ERROR ERROR ERROR   ;mismatch between bss and data
-    endif 
+    endif
 
 vec_init
         dw  nmi_trap
@@ -6097,8 +6097,8 @@ vec_init
         dw  irq_trap
 vec_bss equ $fffa
     endif                   ;end of RAM init data
-    
-    if (load_data_direct = 1) & (ROM_vectors = 1)  
+
+    if (load_data_direct = 1) & (ROM_vectors = 1)
         org $fffa       ;vectors
         dw  nmi_trap
         dw  res_trap
@@ -6106,4 +6106,3 @@ vec_bss equ $fffa
     endif
 
         end start
-            
