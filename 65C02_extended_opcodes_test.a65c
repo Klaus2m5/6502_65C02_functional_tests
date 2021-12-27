@@ -123,6 +123,10 @@ report = 0
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
 ram_top = -1
 
+;disable test decimal mode ADC & SBC, 0=enable, 1=disable,
+;2=disable including decimal flag in processor status
+disable_decimal = 1
+
         noopt       ;do not take shortcuts
         
 ;macros for error & success traps to allow user modification
@@ -2167,7 +2171,9 @@ tadd1   ora adrh        ;merge C to expected flags
         tsx
         cpx #$ff
         trap_ne         ;sp push/pop mismatch
+    if disable_decimal < 1
         next_test
+
 
 ; decimal add/subtract test
 ; *** WARNING - tests documented behavior only! ***
@@ -2272,6 +2278,7 @@ tdad7   cpx #ad2
         cpx #$ff
         trap_ne         ;sp push/pop mismatch
         cld
+   endif
 
         lda test_case
         cmp #test_num
