@@ -13,6 +13,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Assemble the tests
         run: |
+          ls
+          chmod +x ${{ github.repository }}/as65/as65
           ${{ github.repository }}/as65/as65 -l -t 6502_functional_test.a65
           ${{ github.repository }}/as65/as65 -l -t 6502_decimal_test.a65
           ${{ github.repository }}/as65/as65 -l -t 6502_interrupt_test.a65
