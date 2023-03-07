@@ -1,0 +1,736 @@
+; #------------------------------------------------------------------------# <:t17,25,53,57:>
+; |                                                                        |
+; |   TESTCASE.A65                                                         |
+; |                                                                        |
+; |   Test case for 6502 assembler.                                        |
+; |                                                                        |
+; |   Copyright 1994-2005, Frank A. Kingswood                              |
+; |   http://www.kingswood-consulting.co.uk/assemblers/                    |
+; |                                                                        |
+; #------------------------------------------------------------------------#
+;
+; File created 17-may-94
+
+                title   "AS65 test source - all instructions used"
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Options.                                                             |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+;   -dERRORS   check error handling
+;   -n         disable optimizations
+
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Assembler pseudo instructions.                                       |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+; ----- expressions --------------------------------------------------------
+
+                data
+                org     4
+                bss
+                org     1634
+
+TEST            equ     2+*/2
+                if ERRORS
+TEST            equ     TEST+1
+                endif
+
+Constant8       equ     -43
+Constant16      equ     16383
+Constant32      equ     96285725
+
+Absolute        equ     $fff8
+Indirect        equ     $2000
+IndirectWrap    equ     $1fff
+
+
+ANOTHER         set     3|24&8
+ANOTHER         set     (3|24)&8
+ANOTHER         set     4*(3>5)
+ANOTHER         set     4*!3<5
+ANOTHER         set     15<<4
+ANOTHER         set     ANOTHER+1
+ANOTHER         =       ANOTHER+1                   ; shorthand for SET
+
+CHAR            equ     "a"
+DOUBLECHAR      equ     "xy"
+QUADCHAR        equ     "quad"
+
+                if ERRORS
+TRIPLE          equ     "abc"
+TOOMUCH         equ     "abcde"
+                endif
+
+                data
+AddressFour     dw      TEST
+                dw      **5
+
+                org     $60
+
+                ds      14
+DirectByte      db      123
+ZeroPage        db      $80
+                align   32
+DirectWord      dw      12345
+                align   48
+DirectLong      dd      123456789
+                align   79
+DirectCode      rts
+
+                dw      1234%12
+                dw      %1010100101
+                dw      (1+2)%8
+                dw      1010101%%1010101
+                db      hi 0x12ff+2
+                db      lo 0x12ff+2
+                db      (hi 0x12ff)+2
+
+                bss
+Unin_1          db      0
+Unin_2          dw      4256
+Unin_3          dd      34568957
+
+                code
+                org     $200
+
+                page
+
+                if ERRORS
+1
+                equ     123
+                psscht
+                !
+                endif
+
+; ----- range checking on immediate values ---------------------------------
+
+                lda     #10
+                lda     #100
+                if ERRORS
+                lda     #1000
+                lda     #10000
+                lda     #100000
+                lda     #1000000
+                lda     #10000000
+                lda     #100000000
+                lda     #1000000000
+                endif
+
+                lda     10
+                lda     100
+                lda     1000
+                lda     10000
+                if ERRORS
+                lda     100000
+                lda     1000000
+                lda     10000000
+                lda     100000000
+                lda     1000000000
+                endif
+
+
+                page    10                          ; keep 10 lines together
+
+; ----- align --------------------------------------------------------------
+
+                align   16
+                align   32
+
+
+; ----- code, data, org ----------------------------------------------------
+
+                code
+                org     $300
+                data
+                org     $180
+
+                code
+                ldx     #1
+
+                data
+Table           db      1,2,3
+
+                code
+                lda     Table,x
+
+
+; ----- db, fcb, fcc -------------------------------------------------------
+
+Message1        db      7,"Error",13,10,0
+
+Message2        fcb     7
+                fcc     "Error"
+                fcb     13,10,0
+
+
+; ----- ds, rmb ------------------------------------------------------------
+
+                ds      10
+                rmb     10
+
+
+; ----- dw, fcw, fdb -------------------------------------------------------
+
+                dw      23457
+                fcw     13462
+                fdb     6235
+
+
+; ----- number bases -------------------------------------------------------
+
+                dd      1
+                dd      10
+                dd      100
+                dd      1000
+
+                dd      $1
+                dd      $10
+                dd      $100
+                dd      $1000
+
+                dd      %1
+                dd      %10
+                dd      %100
+                dd      %1000
+
+                dd      @1
+                dd      @10
+                dd      @100
+                dd      @1000
+
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Include file with more test stuff.                                   |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+                include "testcase.i"
+
+
+; #------------------------------------------------------------------------#
+; |                                                                        |
+; |   Instructions.                                                        |
+; |                                                                        |
+; #------------------------------------------------------------------------#
+
+                code
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Accumulator and memory instructions.                                 |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+; ----- two-operand instructions -------------------------------------------
+
+Start           adc     #Constant8
+                adc     ZeroPage
+                adc     Absolute
+                adc     (ZeroPage,x)
+                adc     (ZeroPage),y
+                adc     ZeroPage,x
+                adc     Absolute,x
+                adc     Absolute,y
+                if      __65SC02__
+                adc     (ZeroPage)
+                endif
+                if      ERRORS
+                adc     a
+                endif
+
+                and     #Constant8
+                and     ZeroPage
+                and     Absolute
+                and     (ZeroPage,x)
+                and     (ZeroPage),y
+                and     ZeroPage,x
+                and     Absolute,x
+                and     Absolute,y
+                if      __65SC02__
+                and     (ZeroPage)
+                endif
+                if      ERRORS
+                and     a
+                endif
+
+                cmp     #Constant8
+                cmp     ZeroPage
+                cmp     Absolute
+                cmp     (ZeroPage,x)
+                cmp     (ZeroPage),y
+                cmp     ZeroPage,x
+                cmp     Absolute,x
+                cmp     Absolute,y
+                if      __65SC02__
+                cmp     (ZeroPage)
+                endif
+                if      ERRORS
+                cmp     a
+                endif
+
+                eor     #Constant8
+                eor     ZeroPage
+                eor     Absolute
+                eor     (ZeroPage,x)
+                eor     (ZeroPage),y
+                eor     ZeroPage,x
+                eor     Absolute,x
+                eor     Absolute,y
+                if      __65SC02__
+                eor     (ZeroPage)
+                endif
+                if      ERRORS
+                eor     a
+                endif
+
+                lda     #Constant8
+                lda     ZeroPage
+                lda     Absolute
+                lda     (ZeroPage,x)
+                lda     (ZeroPage),y
+                lda     ZeroPage,x
+                lda     Absolute,x
+                lda     Absolute,y
+                if      __65SC02__
+                lda     (ZeroPage)
+                endif
+                if      ERRORS
+                lda     a
+                endif
+
+                ora     #Constant8
+                ora     ZeroPage
+                ora     Absolute
+                ora     (ZeroPage,x)
+                ora     (ZeroPage),y
+                ora     ZeroPage,x
+                ora     Absolute,x
+                ora     Absolute,y
+                if      __65SC02__
+                ora     (ZeroPage)
+                endif
+                if      ERRORS
+                ora     a
+                endif
+
+                sbc     #Constant8
+                sbc     ZeroPage
+                sbc     Absolute
+                sbc     (ZeroPage,x)
+                sbc     (ZeroPage),y
+                sbc     ZeroPage,x
+                sbc     Absolute,x
+                sbc     Absolute,y
+                if      __65SC02__
+                sbc     (ZeroPage)
+                endif
+                if      ERRORS
+                sbc     a
+                endif
+
+                bit     ZeroPage
+                bit     Absolute
+                if      __65SC02__
+                bit     #Constant8
+                bit     ZeroPage,x
+                bit     Absolute,x
+                endif
+                if      ERRORS
+                bit     (ZeroPage)
+                bit     a
+                endif
+
+                cpx     #Constant8
+                cpx     ZeroPage
+                cpx     Absolute
+                if      ERRORS
+                cpx     a
+                cpx     Absolute,x
+                endif
+
+                cpy     #Constant8
+                cpy     ZeroPage
+                cpy     Absolute
+                if      ERRORS
+                cpy     a
+                cpy     (ZeroPage)
+                endif
+
+                ldx     #Constant8
+                ldx     ZeroPage
+                ldx     Absolute
+                ldx     ZeroPage,y
+                ldx     Absolute,y
+                if      ERRORS
+                ldx     a
+                endif
+
+                ldy     #Constant8
+                ldy     ZeroPage
+                ldy     Absolute
+                ldy     ZeroPage,x
+                ldy     Absolute,x
+                if      ERRORS
+                ldy     a
+                endif
+
+                if      __6502X__
+                ; 6502 undefined instructions a.k.a. quasi-opcodes
+                ; these mnemonics are due to Brian Grainger of ICPUG in 1981
+
+                aso     #Constant8                  ; ASL, followed by ORA with operand
+                aso     ZeroPage
+                aso     Absolute
+                aso     (ZeroPage,x)
+                aso     (ZeroPage),y
+                aso     ZeroPage,x
+                aso     Absolute,x
+                aso     Absolute,y
+                if      ERRORS
+                aso     a
+                endif
+
+                axs     ZeroPage                    ; store result of A AND X
+                axs     Absolute
+                axs     (ZeroPage,x)
+                axs     ZeroPage,y
+                if      ERRORS
+                axs     Absolute,x
+                axs     Absolute,y
+                axs     ZeroPage,x
+                axs     (ZeroPage),y
+                axs     a
+                endif
+
+                dcm     ZeroPage                    ; DEC operand, followed by CMP with A
+                dcm     Absolute
+                dcm     (ZeroPage,x)
+                dcm     (ZeroPage),y
+                dcm     ZeroPage,x
+                dcm     Absolute,x
+                dcm     Absolute,y
+                if      ERRORS
+                dcm     a
+                endif
+
+                ins     ZeroPage                    ; INC operand, followed by SBC from A
+                ins     Absolute
+                ins     (ZeroPage,x)
+                ins     (ZeroPage),y
+                ins     ZeroPage,x
+                ins     Absolute,x
+                ins     Absolute,y
+                if      ERRORS
+                ins     a
+                endif
+
+                lax     ZeroPage                    ; LDA and LDX with same data
+                lax     Absolute
+                lax     (ZeroPage,x)
+                lax     (ZeroPage),y
+                lax     ZeroPage,x
+                lax     Absolute,y
+                if      ERRORS
+                lax     Absolute,x
+                lax     a
+                endif
+
+                lse     ZeroPage                    ; LSR, followed by EOR with operand
+                lse     Absolute
+                lse     (ZeroPage,x)
+                lse     (ZeroPage),y
+                lse     ZeroPage,x
+                lse     Absolute,x
+                lse     Absolute,y
+                if      ERRORS
+                lse     #Constant8
+                lse     a
+                endif
+
+                rla     #Constant8                  ; ROL, followed by AND with operand
+                rla     ZeroPage
+                rla     Absolute
+                rla     (ZeroPage,x)
+                rla     (ZeroPage),y
+                rla     ZeroPage,x
+                rla     Absolute,x
+                rla     Absolute,y
+                if      ERRORS
+                rla     a
+                endif
+
+                rra     ZeroPage                    ; ROR, followed by AND with operand
+                rra     Absolute
+                rra     (ZeroPage,x)
+                rra     (ZeroPage),y
+                rra     ZeroPage,x
+                rra     Absolute,x
+                rra     Absolute,y
+                if      ERRORS
+                rra     a
+                endif
+
+                alr     #Constant8                  ; AND with operand, followed by LSR
+
+                arr     #Constant8                  ; AND with operand, followed by ROR
+
+                oal     #Constant8                  ; ORA #$EE, followed by AND with operand, followed by TAX
+
+                sax     #Constant8                  ; SBC the operand from A AND X and store result in X
+
+                xaa     #Constant8                  ; TXA, followed by AND with operand
+                endif
+
+
+; ----- one-operand instructions -------------------------------------------
+
+                sta     ZeroPage
+                sta     Absolute
+                sta     (ZeroPage,x)
+                sta     (ZeroPage),y
+                sta     ZeroPage,x
+                sta     Absolute,x
+                sta     Absolute,y
+                sta     ZeroPage,y
+                if      __65SC02__
+                sta     (ZeroPage)
+                endif
+
+                stx     ZeroPage
+                stx     Absolute
+                stx     ZeroPage,y
+
+                sty     ZeroPage
+                sty     Absolute
+                sty     ZeroPage,x
+
+                if      __65SC02__
+                tsb     ZeroPage
+                tsb     Absolute
+
+                trb     ZeroPage
+                trb     Absolute
+
+                stz     ZeroPage
+                stz     Absolute
+                stz     ZeroPage,x
+                stz     Absolute,x
+
+                clr     ZeroPage
+                clr     Absolute
+                clr     ZeroPage,x
+                clr     Absolute,x
+                endif
+
+                asl     Absolute
+                asl     ZeroPage
+                asl     a
+                asl     ZeroPage,x
+                asl     Absolute,x
+
+                lsr     Absolute
+                lsr     ZeroPage
+                lsr     a
+                lsr     ZeroPage,x
+                lsr     Absolute,x
+
+                rol     Absolute
+                rol     ZeroPage
+                rol     a
+                rol     ZeroPage,x
+                rol     Absolute,x
+
+                ror     Absolute
+                ror     ZeroPage
+                ror     a
+                ror     ZeroPage,x
+                ror     Absolute,x
+
+                if ERRORS
+                asl     #Constant8
+                asl     (ZeroPage,x)
+                asl     (ZeroPage),y
+                asl     Absolute,y
+                asl     ZeroPage,y
+                asl     (ZeroPage)
+                asl     (Indirect)
+                endif
+
+                dec     Absolute
+                dec     ZeroPage
+                dec     ZeroPage,x
+                dec     Absolute,x
+                if      __65SC02__
+                dec     a
+                endif
+
+                inc     Absolute
+                inc     ZeroPage
+                inc     ZeroPage,x
+                inc     Absolute,x
+                if      __65SC02__
+                inc     a
+                endif
+
+
+; ----- bit addressing on zero page ----------------------------------------
+
+                if      __65SC02__
+                rmb     0,0
+                rmb     1,13
+                rmb     2,167
+                rmb     3,255
+                rmb     4,128
+                rmb     5,1
+                rmb     6,25
+                rmb     7,0x80
+
+                smb     0,0
+                smb     1,13
+                smb     2,167
+                smb     3,255
+                smb     4,128
+                smb     5,128
+                smb     6,25
+                smb     7,0x80
+                endif
+
+; ----- implied addressing -------------------------------------------------
+
+                tax
+                tay
+                tsx
+                txa
+                txs
+                tya
+
+                if      __6502X__
+                ; 6502 undefined instructions a.k.a. quasi-opcodes
+                skb                                 ; skip one byte
+                skw                                 ; skip two bytes
+                endif
+
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Index register and stack manipulation instructions.                  |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+; ----- implied addressing -------------------------------------------------
+
+                dex
+                dey
+                inx
+                iny
+                pha
+                php
+                pla
+                plp
+
+                if __65SC02__
+                phx
+                phy
+                plx
+                ply
+                endif
+
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Jump and branch instructions.                                        |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+; ----- jump and jump to subroutine ----------------------------------------
+
+                align   256
+
+Target          jsr     Target
+                noopt
+                jmp     Target
+                opt
+                jmp     Target
+                jmp     (Indirect)
+                if __65SC02__
+                jmp     (IndirectWrap)              ; note cycle count
+                jmp     (Indirect,x)
+                endif
+
+
+; ----- relative addressing ------------------------------------------------
+
+                bcc     Target
+                bcc     Target-$10                  ; target address in other page
+                bcs     Target
+                beq     Target
+                bmi     Target
+                bne     Target
+                bpl     Target
+                bvc     Target
+                bvs     Target
+
+                if __65SC02__
+                bra     Target
+                bra     Target-$10                  ; target address in other page
+
+                bbr     0,0,Target
+                bbr     1,13,Target-$10
+                bbr     2,167,Target
+                bbr     3,255,Target
+                bbr     4,128,Target-$10
+                bbr     5,128,Target
+                bbr     6,25,Target
+                bbr     7,0x80,Target-$10
+
+                bbs     0,0,Target
+                bbs     1,13,Target
+                bbs     2,167,Target-$10
+                bbs     3,255,Target
+                bbs     4,128,Target-$10
+                bbs     5,128,Target
+                bbs     6,25,Target-$10
+                bbs     7,0x80,Target
+                endif
+
+
+; ----- implied addressing -------------------------------------------------
+
+                brk
+                nop
+                rti
+                rts
+
+
+; +------------------------------------------------------------------------+
+; |                                                                        |
+; |   Condition code register manipulation instructions.                   |
+; |                                                                        |
+; +------------------------------------------------------------------------+
+
+; ----- implied addressing -------------------------------------------------
+
+                clc
+                cld
+                cli
+                clv
+                disable
+                enable
+                sec
+                sed
+                sei
+                stc
+                std
+                sti
+
+                end     Start
+
+; ----- EOF -----
+
