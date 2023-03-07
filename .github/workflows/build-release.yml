@@ -1,0 +1,31 @@
+name: Build and release
+
+on:
+  push:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Assemble the tests
+        run: |
+          ${{ github.repository }}/as65/as65 -l -t 6502_functional_test.a65
+          ${{ github.repository }}/as65/as65 -l -t 6502_decimal_test.a65
+          ${{ github.repository }}/as65/as65 -l -t 6502_interrupt_test.a65
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: false
+          title: "Development Build"
+          files: |
+            6502_functional_test.a65
+            6502_decimal_test.a65
+            6502_interrupt_test.a65
+            6502_functional_test.lst
+            6502_decimal_test.lst
+            6502_interrupt_test.lst
