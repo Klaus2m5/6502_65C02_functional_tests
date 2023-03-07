@@ -11,22 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Assemble the tests
+      
+      - name: Configure the permissions
+        run: chmod +x as65/as65
+        
+      - name: Assemble the sources
         run: |
-          chmod +x as65/as65
           as65/as65 -l -t 6502_functional_test.a65
           as65/as65 -l -t 6502_decimal_test.a65
           as65/as65 -l -t 6502_interrupt_test.a65
-      - uses: "marvinpinto/action-automatic-releases@latest"
+          
+      - name: Publish the release 
+        uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "latest"
           prerelease: false
           title: "Development Build"
           files: |
-            6502_functional_test.a65
-            6502_decimal_test.a65
-            6502_interrupt_test.a65
+            6502_functional_test.bin
+            6502_decimal_test.bin
+            6502_interrupt_test.bin
             6502_functional_test.lst
             6502_decimal_test.lst
             6502_interrupt_test.lst
