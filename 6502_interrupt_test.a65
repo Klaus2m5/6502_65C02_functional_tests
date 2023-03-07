@@ -65,7 +65,7 @@ load_data_direct = 1
 ;emulators diag register - set i_drive = 0 for a latch (74HC573)
 I_port      = $bffc     ;feedback port address
 I_ddr       = 0         ;feedback DDR address, 0 = no DDR
-I_drive     = 1         ;0 = totem pole, 1 = open collector
+I_drive     = 0         ;0 = totem pole, 1 = open collector
 IRQ_bit     = 0         ;bit number of feedback to IRQ
 NMI_bit     = 1         ;bit number of feedback to NMI, -1 if not available
 I_filter    = $7f       ;filtering bit 7 = diag stop
@@ -73,7 +73,7 @@ I_filter    = $7f       ;filtering bit 7 = diag stop
 ;typical IO chip port B - set i_drive = 0 to avoid pullup resistors
 ;I_port      = $bfb2     ;feedback port address
 ;I_ddr       = $bfb3     ;feedback DDR address, 0 = no DDR
-;I_drive     = 1         ;0 = totem pole, 1 = open collector
+;I_drive     = 1        ;0 = totem pole, 1 = open collector
 ;IRQ_bit     = 0         ;bit number of feedback to IRQ
 ;NMI_bit     = 1         ;bit number of feedback to NMI, -1 if not available
 ;I_filter    = $ff       ;no bits filtered
@@ -83,7 +83,7 @@ D_clear     = 0         ;0 = not cleared (NMOS), 1 = cleared (CMOS)
 
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, 6 consecutive Bytes required
-zero_page = $a  
+zero_page = $0
 
 ;data_segment memory start address, 4 consecutive Bytes required
 data_segment = $200  

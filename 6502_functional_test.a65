@@ -100,10 +100,10 @@ I_flag = 3
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $52 (82) consecutive Bytes required
 ;                                add 2 if I_flag = 2
-zero_page = $a  
+zero_page = $0 
 
 ;data_segment memory start address, $7B (123) consecutive Bytes required
-data_segment = $200  
+data_segment = $200
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
     endif  
