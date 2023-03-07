@@ -1,0 +1,763 @@
+Kingswood Software Development Tools                                 AS65
+-------------------------------------------------------------------------
+
+NAME
+   as65 - assembler for 6502 and 65SC02 microprocessors.
+
+
+SYNOPSIS
+   as65 [-cdghilnopqstvwxz] file
+
+
+DESCRIPTION
+   This documentation is for as65 [1.41].
+   Copyright 1990-2005, Frank A. Kingswood.
+
+   AS65 is an assembler for the 6502 and 65SC02 microprocessors. It reads
+   input from an ASCII text file, assembles this into memory, and then 
+   writes a listing and a binary or hex file.
+   If the assembler can't find the source file specified, it tries
+   appending '.a65', '.asm' and '.s' to the name before it gives up
+   with an error message.  When run in a DOS box under Windows 95 or
+   later the assembler uses long file names.
+
+   AS65 is case sensitive, not only does it differentiate between the
+   labels XYZ and xyz, but it also requires all (pseudo) instruction and
+   register names to be lower case.  This way, the listing is the most
+   readable.  Option -i can be used to make the assembler case insensitive.
+   Alternatively, the included TOLOWER program can be used to convert
+   sources to lower case.
+
+
+OPTIONS
+   As65 recognizes the following options:
+
+      -c   Show number of cycles per instruction in listing.  This
+           decreases the number of columns available for listing by 5.
+           The number of cycles is printed between brackets [ and ].
+
+      -d<name>
+            Define a label before the first source line is read.  If
+            no name is specified, DEBUG is defined.  The label is
+            EQUated to be 1.
+
+      -g   Generate source-level debug information file.  This file
+           can then be used in in-system debugging or a software
+           simulator.
+
+      -h<lines>
+           Specify height of page for listing.  This option determines
+           the number of lines per printed page.  Each page has a header
+           and is terminated by a form-feed character.  The special
+           case -h0 indicates an infinite page length.  In this case,
+           page breaks are only inserted between the two passes and
+           the symbol table (if present).
+
+      -i   Ignore case in opcodes.  In this way, the assembler does not
+           differentiate between 'adc' and 'ADC', for example.  Labels
+           are still case sensitive.
+
+      -l   Generate pass 2 listing.
+
+      -l<filename>
+            Listing file name.  The listing file is used for pass 1 and
+            pass 2 listing, for the symbol table (printed between the
+            two passes), and some statistics.  When neither -p nor -t
+            is specified, and -l<filename> is given, then the assembler
+            automatically generates a pass 2 listing.  When -p or -t is
+            specified, an additional -l should be given is a pass 2
+            listing is required.  The filename - can be used to direct
+            the listing to standard output.
+
+      -m   Show macro expansions in listing.  Macro lines are prefixed
+           by a > sign.
+
+      -n   Disable optimizations.  When this option is specified no
+           optimizations will be done, even when the OPT pseudo-
+           instruction is used in the source code.
+
+      -o<filename>
+           Specify binary or s-records output file name.  The assembler
+           automatically adds ".bin" for binary output or ".s19" for
+           s-records output when no extension is given.
+
+      -p   Generate pass 1 listing.  This may be used to examine any
+           optimizations/bugs generated in pass 2.
+
+      -q   Quiet mode.  No running line counter is displayed on standard
+           error output.
+
+      -s   Write s-records instead of binary file.  The s-records file
+           contains data for (only) the used memory; the binary file
+           begins at the lowest used address, and continues up to the
+           highest used address; filling unused memory between these
+           two addresses with either $ff or $00.
+
+      -s2  Write intel-hex file instead of binary file.  The intel-hex
+           file contains data for (only) the used memory.
+
+      -t   Generate symbol table.  The symbol table is listed between
+           passes one and two, displaying the name, hexadecimal and
+           decimal value of each label, using 4-digit hexadecimal
+           numbers where possible, otherwise 8-digit numbers.  The
+           decimal value is followed by an asterisk if the label is
+           redefinable (defined using SET instead of EQU).
+
+      -v   Verbose mode.  More information is displayed on standard
+           output.
+
+      -w<width>
+           Specify column width.  Normally, the listing is printed using
+           79 columns for output to a 80-column screen or printer.  If
+           the -w option is given without a number following it, then
+           the listing will be 133 columns wide, otherwise it will be
+           the number of colulmns specified (between 60 and 200).
+
+      -x   Use 65SC02 extensions.  This CPU has several additional 
+           instructions. When this option is not specified the assembler 
+           rejects the 65SC02 extensions.
+
+      -z   Fill unused memory with zeros.  Normally when a binary file
+           is generated, unused bytes between the lowest and highest
+           used addresses are filled with $ff, the unprogrammed state
+           of EPROMs.  If this is not wanted, the -z option can be used
+           to initialize this memory to $00.  With s-records, unused
+           memory is not output to the file, and this option forces the
+           creation of an S9 (start address) record instead, even if no 
+           start address is specified in the file with the END pseudo-
+           instruction.
+
+   Commandline options can be catenated, but no other option can follow
+   one that may have a string parameter.  Other options can follow one
+   that has a numeric parameter.
+   Thus:
+      -tlfile
+   is correct (specifying symbol table and pass 2 listing), and so is
+      -h80t
+   which specifies 80 lines per page and a symbol table.
+
+   It is possible to discard any of the the output files by specifying
+   the name 'nul'.
+
+
+EXPRESSIONS
+
+   The assembler recognizes most C-language expressions.  The operators
+   are listed here in order of precedence, highest first:
+
+       ()            braces to group subexpressions
+       * $           current location counter
+       unary + - ! ~ unary + (no-operation), negation, logical NOT,
+                     binary NOT
+       * / %         multiplication, division, modulo
+       + -           addition, subtraction
+       << >>         shift left, shift right
+       < > <= >=     comparison for greater/less than
+       = !=          comparison for equality (== can be used for =)
+       &             binary AND
+       ^             binary XOR
+       |             binary OR
+       &&            logical AND
+       ||            logical OR
+       hi lo         high byte, low byte
+
+   The logical NOT (!) evaluates to zero if the parameter is nonzero,
+   and vice versa.  The binary NOT (~) complements all the bits in its
+   parameter.  Logical AND (&&) and OR (||) operators evaluate to one
+   if both resp. at least one argument is nonzero.  These two operators
+   evaluate both arguments, unlike the C-language versions.
+
+   Note: the asterisk is both used as the multiplication operator, and
+   as symbol for the current location.  The assembler determines from
+   the context which is which. Thus:
+
+       5**
+
+   is a valid expression, evaluating to five times the current location
+   counter, and:
+
+       2+*/2
+
+   is too, evaluating to the current location counter divided by two, to
+   which two is added.  In the same way, the % sign is both used as the
+   modulo operator and the prefix for binary numbers.
+
+   Numbers can be specified in any number base between 2 and 36.
+   Decimal numbers can be used without a prefix, hexadecimal numbers
+   can be prefixed by $, octal numbers by @, and binary numbers by %.
+   Other number bases can be used by using the following format:  
+      <base>#<number>, 
+   where the base is the number base to use (must be specified in 
+   decimal), and number is the value.  Thus:
+      1000    - decimal number, value 10*10*10=1000
+      %1000   - binary number, value 2*2*2=8
+      @1000   - octal number, value 8*8*8=512
+      $1000   - hexadecimal number, value 16*16*16=4096
+      0b1000  - binary number, value 2*2*2=8
+      0x1000  - hexadecimal number, value 16*16*16=4096
+      2#1000  - binary number, value 2*2*2=8
+      4#1000  - base-4 number, value 4*4*4=64
+      7#1000  - base-7 number, value 7*7*7=343
+      36#1000 - base-36 number, value 36*36*36=444528
+   For number bases greater than 10, additional digits are represented
+   by letters, starting from A.  Both lower and upper case letters can
+   be used.
+      11#aa = 120
+      16#ff = 255
+      25#oo = 624
+      36#zz = 1305
+
+
+PSEUDO-INSTRUCTIONS
+
+   align <expression>
+
+      Align fills zero or more bytes with zeros until the new address
+      modulo <expression> equals zero.  If the expression is not present,
+      align fills zero or one bytes with zeros until the new address
+      is even.
+
+      Example 1:
+                      align  256             ; continue assembly on the
+                                             ; next 256-byte page
+
+      Example 2:
+                      align                  ; make sure table begins
+      Table           dw     1,2,3           ; on an even address
+
+
+
+   bss
+
+      Put all following data in the bss segment.  Only data pseudo-instructions 
+      can be used in the bss segment, and these only increment the location 
+      counter.  It is up to the programmer to initialize the bss segment.  The 
+      bss segment is especially meaningful in a ROM based system where
+      variables must be placed in RAM, and RAM is not automatically initialized.
+
+      The assembler internally maintains three separate location counters,
+      one for the code segment, one for the data segment and one for the
+      uninitialized data segment.  The user is responsible for not overlapping
+      the segments by setting appropriate origins.  The code, data and bss
+      pseudo-instructions can be used to interleave code and data in the source
+      listing, while separating the three in the generated program.  The
+      assembler starts with the code segment if none is specified.
+
+      Example:
+                     code
+                     org    $f000           ; Assuming 4 kbyte code ROM
+                     data                   ; with 2 kbyte program and
+                     org    $f800           ; 2 kbyte initialized data
+                     bss
+                     org    0               ; bss segment is in RAM
+
+      Buffer         ds     100
+
+                     code
+      Begin          lda    Table,x
+                     jsr    MyFunc
+                     .
+                     .
+
+                     data
+      Table          db     1,2,3
+
+                     code
+      MyFunc         .
+                     .
+
+   cmap
+   cmap <expression>
+   cmap <char>,<bytelist>
+
+      Establish mapping of characters in strings used as argument of
+      the db pseudo-instruction to byte values.
+      In the first form of this instruction it clears the mapping to
+      be the identity mapping.  This is also the default when the
+      assembler starts up.
+      In the second form of this instruction it forces all characters
+      to be mapped to that value (which must be possible to express
+      in 8 bits).
+      In the third form of this instruction it assigns the first byte
+      of the bytelist (which may be expressed as a string) to be the
+      mapping for <char>, the second byte in the bytelist to be the
+      mapping for the character following <char> in the ASCII character
+      set.
+
+      Example:
+         cmap    "a","ABCDEFGHIJKLMNOPQRSTUVWXYZ"  ; convert to uppercase
+
+      Example:
+         cmap  -1                         ; value for non-digits
+         cmap  "0",0,1,2,3,4,5,6,7,8,9    ; decode ASCII digits to binary
+         
+
+   code
+
+      Put all assembled instructions and data in the code segment.
+      See BSS
+
+
+   data
+
+      Put all assembled instructions and data in the data segment.
+      See BSS
+
+
+   db <bytelist>
+
+      Define bytes.  The bytes may be specified as expressions or strings,
+      and are placed in the current (code or data) segment.  This pseudo
+      instruction is similar to the fcb and fcc pseudo-instructions.
+
+      Example:
+      Message         db     "\aError\r\n",0
+
+
+   ds <expression>
+
+      Define zero or more bytes empty space.  The specified number of
+      bytes are filled with zeros.  This pseudo-instruction is identical
+      to the pseudo-instruction rmb.
+
+      Example:
+                     ds     100             ; reserve 100 bytes here
+
+
+   dw <wordlist>
+
+      Define words.  The words are placed in the current (code or data)
+      segment.  This pseudo-instruction is identical to the fcw and fdb 
+      pseudo-instructions.
+
+      Example:
+                     lda    Function        ; number of function
+                     asl    a
+                     tax
+                     lda    JumpTable+1,x
+                     pha
+                     lda    JumpTable,x
+                     pha
+                     rts
+
+      JumpTable      dw     Function0
+                     dw     Function1
+                     dw     Function2
+
+
+   else
+
+      The else pseudo-instruction can be used for if-then-else
+      constructions. It must be placed between an if and an endif
+      instruction.  For an example, see the if pseudo-instruction.
+
+
+   end <expression>
+
+      The end pseudo-instruction is optional, and need not be used.  If
+      it is used, its optional operand specifies the staring address of
+      the program.  This address is displayed when the program is
+      assembled, and is also placed in the s-record output file.
+
+      Example:
+                     end    Start
+
+   
+   endif
+
+      The endif pseudo-instruction must be used to close an if-endif
+      or if-else-endif construction.  For an example, see the if
+      pseudo-instruction.
+
+
+   endm
+
+      The endm pseudo-instruction must be used to close a macro
+      definition, and is only valid as the last statement of a
+      macro.
+
+
+   <label> equ <expression>
+
+      The equ (equate) pseudo-instruction sets the specified label to
+      the value of the expression.  The label may not already exist.
+      Some programmers choose to use only upper-case identifiers for
+      labels defined in this way to differentiate them from addresses.
+
+      Example:
+      ESCAPE          equ    27
+
+
+   fcb <bytelist>
+
+      Define bytes (form constant byte).  The bytes may be specified
+      only as expressions, and are placed in the current (code or data)
+      segment.  This pseudo-instruction is similar to the db 
+      pseudo-instruction.
+
+      Example:
+      Message        fcb    7
+                     fcc    "Error"
+                     fcb    13,10,0
+
+
+   fcc <string>
+
+      Define bytes (form constant character).  The bytes may be
+      specified only as a string, and are placed in the current (code or
+      data) segment.  This pseudo-instruction is similar to the db 
+      pseudo-instruction.
+
+
+   fcw <wordlist>
+
+      Define words (form constant word).  The words are placed in the
+      current (code or data) segment.  This pseudo-instruction is similar
+      to the fdb and dw pseudo-instructions.
+
+
+   fdb <wordlist>
+
+      Define words (form double byte).  The words are placed in the
+      current (code or data) segment.  This pseudo instruction is
+      identical to the fcw and dw pseudo-instructions.
+
+
+   if <expression>
+
+      The if pseudo-instruction can be used in conjunction with the
+      endif and possibly the else pseudo-instructions to selectively
+      enable and disable pieces of code in the source.  If the expression
+      given evaluates to zero, then the following code up to the matching
+      else or endif is not included in the assembly.  If the expression
+      is nonzero, then the following code is included, but any code
+      between the matching else and endif is not.
+
+      Example:
+                     if COUNT=2 | COUNT=4
+                     asl     a              ; shift left for counts
+                     if COUNT=4             ; of 2 and 4
+                     asl     a
+                     endif
+                     else
+                     ldx     #COUNT         ; otherwise use slow
+                     jsr     Multiply       ; multiply subroutine
+                     endif
+
+
+   include <string>
+
+      The named file is included in the assembly at this point.  After
+      it has been read, assembly continues with the next line of the
+      current file. Include files may be nested.
+
+      Example:
+                     include "defines.i"
+
+
+   list
+
+      Enable generation of the listing in the list-file.  If the listing
+      has been disabled twice, it must be enabled twice before it is
+      generated.  When no -p or -l option has been specified on the
+      command line, this pseudo-instruction has no effect.
+
+
+   macro
+
+      Define a macro.  Macros allow a block of source statements to be
+      given a name, and then that name can be used to include the
+      statements anywhere in the program.  Parameters can be used to
+      pass arguments to the macro.  In the macro definition names
+      can be used to respresent the arguments; these names in the text
+      are substituted with the value passed on macro expansion.
+      Macro arguments can also be represented by using \1 through \9
+      in the macro text; these sequences are replaced by the first
+      through ninth argument respectively.  The special value \0
+      contains the number of arguments passed to the macro.
+
+      Example 1:
+      Macro1         macro  text,value
+                     dw     value
+                     db     text,0
+                     db     "value=",'value',0
+                     endm
+
+      Macro2         macro
+                     dw     \2
+                     db     \1,0
+                     db     "value=\2",0
+                     endm
+
+                     Macro1 "Hello",123
+                     Macro2 "Hello",123
+
+      Macros can also use local labels, for when a unique label is needed
+      each time the macro is expanded.  This can be used when the macro
+      contains a conditional jump, or a loop of some kind, or simply needs
+      to reference some data.  Local labels can be declared by using the
+      local pseudo-instruction, or by using the \? special value.  The
+      \? value is replaced by a unique four-digit decimal number each
+      time a macro is used.
+      
+      Example 2:
+      Macro3         macro  text
+                     local  String
+                     code
+                     dw     String
+                     data
+      String         db     text,0
+                     endm
+
+      Macro4         macro  text
+                     code
+                     dw     String\?
+                     data
+      String\?       db     text,0
+                     endm
+
+                     Macro3 "Hello"
+                     Macro4 "Hello"
+
+      Macros can also contain if...endif statements, and the exitm
+      pseudo-instruction can be used to terminate macro expansion.
+      Macros can also call other macros (or themselves) up to a nesting
+      depth of 15 levels.
+
+      Macro5         macro  count
+                     if     count>25
+                     exitm
+                     endif
+                     db     10*count
+                     endm
+
+                     Macro5 10
+                     Macro5 100
+
+
+   nolist
+
+      Disable generation of the listing in the list-file.
+
+
+   noopt
+
+      Disable optimizations.  If the -n option has been specified on the
+      command line, this pseudo-instruction has no effect.
+
+
+   nop <expression>
+
+      No operation.  When the optional expression is not present, this
+      is simply the nop instruction of the processor.  When the
+      expression is present, the specified number of nop instructions
+      are inserted.
+
+      Example:
+                     nop    10
+
+
+   opt
+
+      Enable optimizations.  If the -n option has been specified on the
+      command line, this pseudo-instruction has no effect.
+      When optimization is enabled, the assembler tries to use the
+      shortest and fastest instructions possible which have the effect
+      the user wants.  It may replace any extended-address instruction
+      by zero-page instructions.  It replaces jumps with branches (65SC02
+      only) and absolute address instructions by zero page instructions.
+      The effects of optimizations is clearly visible if both a pass
+      one and a pass two listing is generated.
+
+
+   org <expression>
+
+      The org (origin) pseudo-instruction specifies the next address to
+      be used for assembly.  When no origin has been specified, the
+      assembler uses the value 0.  The assembler maintains three separate
+      location counters: one for the code segment, one for the data
+      segment, and one for the bss segment.  See the code and pseudo-
+      instruction for more information.
+
+
+   page <expression>
+
+      When the optional expression is not present, the assembly listing
+      is continued on the next page.  When the expression is present,
+      the listing is continued on the next page only if the specified
+      number of lines do not fit on the current page.
+
+
+   rmb <expression>
+
+      Define zero or more bytes empty space.  The specified number of
+      bytes are filled with zeros.  This pseudo-instruction is identical
+      to the pseudo-instruction ds.
+
+
+   <label> set <expression>
+   <label> = <expression>
+
+      The set pseudo-instruction sets the specified label to the value
+      of the expression.  The label may or may not already exist.
+      Some programmers choose to use only upper-case identifiers for
+      labels defined in this way to differentiate them from addresses.
+
+      Example:
+      CURRENT         set    0
+
+                      .
+                      .
+                      .
+
+      CURRENT         set    CURRENT+1
+
+
+   struct <name>
+   struct <name>,<expression>
+
+      The struct (structure) pseudo-instruction can be used to define
+      data structures in memory more easily.
+
+      The name of the structure is set to the total size of the structure;
+      if the expression is present, the starting offset is the value of
+      the expression in stead of zero.
+
+      Between the struct and end struct pseudo-instructions the following
+      pseudo-instructions can be used: db, dw, ds, label, align.
+      Within structures these pseudo-instructions take a slightly different
+      format than normally:
+
+         db <name>                element is one byte
+
+         dw <name>                element is two bytes
+
+         ds <name>,<expression>   element is the specified number of bytes
+
+         ds <expression>          skip the specified number of bytes
+
+         label <name>             element is zero bytes, i.e. set the name
+                                  to the current structure offset
+
+         align <expression>       skip until (offset%expression)=0
+
+         align                    skip until offset is even
+
+
+      Example:
+                     struct ListNode,4
+                     dw     LN_Next
+                     dw     LN_Previous
+                     db     LN_Type
+                     align
+                     label  LN_Simple       ; size of structure so far
+                     align  8
+                     ds     LN_Data,10
+                     end struct
+
+      This is identical to:
+
+      LN_Next        equ     4       ;\
+      LN_Previous    equ     6       ; offset of structure elements
+      LN_Type        equ     8       ;/
+      LN_Simple      equ     10      ; size of structure so far
+      LN_Data        equ     16      ; offset of structure element
+      ListNode       equ     26      ; size of structure
+
+
+   title <string>
+
+      The title pseudo-instruction sets the title to be used in the
+      header of each listing page.  The string should be no longer than
+      80 characters.
+
+      Example:
+                   title  "DIS65 : A disassembler for a 6502 CPU"
+
+
+ADDRESSING MODES
+   The assembler allows all 6502 and 65SC02 addressing modes.
+
+   List of available modes:
+      a
+      #Expression
+      Expression
+      Expression,x
+      Expression,y
+      (Expression)
+      (Expression,x)
+      (Expression),y
+
+LIST OF ACCEPTED INSTRUCTIONS
+   adc align and asl bcc bcs beq bit bmi bne bpl bra brk bvc bvs clc cld
+   cli clr clv cmp code cpx cpy data db dd dec dex dey disable ds dw else
+   enable end endif eor equ fcb fcc fcw fdb if inc include inx iny jmp jsr
+   lda ldx ldy list lsr nolist noopt nop opt ora org page pha php phx phy
+   pla plp plx ply rmb rol ror rti rts sbc sec sed sei set sta stc std sti
+   struct stx sty stz tax tay title trb tsb tsx txa txs tya
+
+   Of these instructions, the following are (more or less) synonymous,
+   and can be used interchangably.
+   YOU CAN USE     WHERE YOU WOULD PREVIOUSLY USE
+      disable   -  sei
+      enable    -  cli
+      nop 6     -  nop nop nop ....
+      stc       -  sec
+      sti       -  sei
+      stv       -  sev
+      clr       -  stz
+
+   And pseudo-instructions:
+      db        -  fcb, fcc
+      dw        -  fcw, fdb
+      ds        -  rmb
+      =         -  set
+      struct    -  lots of EQUs
+
+
+LIST OF OTHER KEYWORDS
+   !  !=  #  %  &  &&  (  )  *  +  ++  ,  -  --  /  <
+   <<  <=  =  >  >=  >>  [  ]  ^  |  ||  ~  a x y
+
+
+FILES
+   <file>.a65 - source file.
+   <file>.asm - source file -- alternative.
+   <file>.lst - List file.
+   <file>.s19 - Motorola S-records output file.
+   <file>.hex - Intel hex output file.
+   <file>.bin - Binary output file.
+
+
+BUGS
+   No provision for linking other pre-assembled modules is made.
+   Escape sequences in strings can't use the \x<digits> and
+   \<digits> formats.
+
+
+RETURNS
+   As65 returns one of the following values:
+
+      0 - Source file assembled without errors.
+      1 - Incorrect parameter specified on the commandline.
+      2 - Unable to open input or output file.
+      3 - Assembly gave errors.
+      4 - No memory could be allocated.
+
+
+DIAGNOSTICS
+   Help message if only parameter is a question mark, or if an
+   illegal option has been specified.
+
+
+AUTHOR
+   This is copyrighted software, but may be distributed freely as long
+   as this document accompanies the assembler, and no copyright messages
+   are removed.  You are explicitly NOT allowed to sell this software
+   for anything more than a reasonable copying fee, say US$5.
+   To contact the author:
+      Frank A. Kingswood       
+      Email: as@kingswood-consulting.co.uk
+      WWW:   http://kingswood-consulting.co.uk/assemblers/
+
+-------------------------------------------------------------------------
